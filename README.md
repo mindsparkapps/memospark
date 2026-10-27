@@ -34,6 +34,15 @@ No se pregunta Difícil / Bien / Fácil: la app lo calcula con el acierto, el ti
 
 Al dar vuelta la tarjeta aparece un check verde (acierto) o una cruz roja (fallo) grande y animada, suena un tono (sube al acertar, baja al fallar) y el celular vibra (Android). Debajo se ve la nota que puso la app, por qué y cuándo vuelve.
 
+### Estadísticas
+
+La pestaña **Estadísticas** muestra:
+
+- respondidas y aciertos de hoy, tiempo medio por respuesta, recuerdo en los repasos de los últimos 30 días y racha (actual / mejor);
+- el estado de todas las tarjetas: sin ver, aprendiendo, en repaso y dominadas (intervalo de 21 días o más);
+- respuestas por día de los últimos 30 días y repasos programados para los próximos 14 (toca o pasa el mouse por una barra para ver el detalle);
+- una tabla por mazo con tarjetas, sin ver, dominadas, aciertos de 30 días y lo que toca hoy.
+
 ### Ajustes (⚙️)
 
 - **Vibración** (activada por defecto) y **Sonidos** (activados por defecto). Se guardan en cada dispositivo; dentro de ZenBan duran mientras la ventana esté abierta.

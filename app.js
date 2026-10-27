@@ -6,7 +6,8 @@
 // 1.0 primera versión · 1.1 calificación automática (acierto, tiempo y aciertos seguidos), sonido al acertar,
 // respuesta libre que se escribe y se comprueba · 1.2 registro de respuestas, sonido de fallo, check / cruz animados,
 // ajustes (vibración y sonido) · 1.3 botón para copiar las instrucciones de la IA en Mazos e Importar
-const APP_VERSION = '1.3';
+// 1.4 pestaña Estadísticas
+const APP_VERSION = '1.4';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -143,6 +144,7 @@ function render() {
   if (vista === 'mazos') renderMazos();
   else if (vista === 'mazo') renderMazo();
   else if (vista === 'formato') renderFormato();
+  else if (vista === 'stats') renderStats();
   else if (vista === 'estudio' && !study) go('mazos');
   if (IN_ZENBAN && pluginReady && !readOnly) ZenBanPlugin.setTitle(pluginTitle());
 }
@@ -226,6 +228,171 @@ function renderMazos() {
     </div>
     <div class="decks">${deckCards}</div>`;
 }
+
+/* ---------- Vista: Estadísticas ---------- */
+const fechaCorta = (ts) => new Date(ts).toLocaleDateString('es', { day: 'numeric', month: 'short' }).replace('.', '');
+const pctTxt = (a, b) => b ? `${Math.round(a / b * 100)}%` : '—';
+
+function mejorRacha() {
+  const dias = [...new Set([...S.dias.values()].filter(d => d.total > 0).map(d => d.dia))].sort();
+  let mejor = 0, actual = 0, prev = null;
+  dias.forEach(d => {
+    const t = new Date(d + 'T12:00:00').getTime();
+    actual = prev != null && Math.round((t - prev) / SRS.DAY) === 1 ? actual + 1 : 1;
+    mejor = Math.max(mejor, actual);
+    prev = t;
+  });
+  return mejor;
+}
+
+// Gráfico de barras de una sola serie hecho con HTML (se adapta al ancho sin deformar el texto).
+// barras: [{ v, etiqueta, tip }]; cada barra muestra su detalle al pasar el mouse o tocarla.
+function graficoBarras(barras, { cadaEtiqueta = 7, resaltarUltima = false, vacio = 'Sin datos todavía' } = {}) {
+  const max = Math.max(0, ...barras.map(b => b.v));
+  if (!max) return `<div class="chart-empty">${vacio}</div>`;
+  const tope = max <= 5 ? max : Math.ceil(max / 5) * 5;
+  return `
+    <div class="chart">
+      <div class="chart-y"><span>${tope}</span><span>${Math.round(tope / 2)}</span><span>0</span></div>
+      <div class="chart-plot">
+        <div class="chart-grid"><i></i><i></i></div>
+        <div class="chart-bars">${barras.map((b, i) => `
+          <button type="button" class="bar-hit${resaltarUltima && i === barras.length - 1 ? ' hoy' : ''}" data-tip="${esc(b.tip)}" aria-label="${esc(b.tip)}">
+            <span class="bar" style="height:${b.v ? Math.max(2, b.v / tope * 100) : 0}%"></span>
+          </button>`).join('')}
+        </div>
+        <div class="chart-x">${barras.map((b, i) => `<span>${i % cadaEtiqueta === 0 || i === barras.length - 1 ? esc(b.etiqueta) : ''}</span>`).join('')}</div>
+      </div>
+    </div>`;
+}
+
+function renderStats() {
+  const mazos = mazosOrdenados();
+  const now = Date.now();
+  const hoy = SRS.dayKey(now);
+  const prog = [...S.tarjetas.values()].map(progresoDe);
+  const total = prog.length;
+  const sinVer = prog.filter(p => p.estado === 'nuevo').length;
+  const aprend = prog.filter(SRS.enAprendizaje).length;
+  const dominadas = prog.filter(p => p.estado === 'repaso' && p.intervalo >= 21).length;
+  const repaso = total - sinVer - aprend - dominadas;
+
+  if (!total) {
+    $('#stats-body').innerHTML = `<div class="empty"><div style="font-size:2.6rem">📊</div><h3>Aún no hay estadísticas</h3><p>Importa un mazo y estudia un poco: aquí verás tu avance, tus aciertos y lo que te toca repasar los próximos días.</p><button class="btn primary" type="button" data-go="mazos">Ir a mis mazos</button></div>`;
+    return;
+  }
+
+  // Hoy y últimos 30 días (conteos diarios + registro de respuestas)
+  const diasHoy = [...S.dias.values()].filter(d => d.dia === hoy);
+  const respHoy = diasHoy.reduce((n, d) => n + d.total, 0);
+  const acHoy = diasHoy.reduce((n, d) => n + d.aciertos, 0);
+  const reg = [...S.registro.values()];
+  const regHoy = reg.filter(r => SRS.dayKey(r.ts) === hoy);
+  const segHoy = regHoy.length ? regHoy.reduce((n, r) => n + r.ms, 0) / regHoy.length / 1000 : null;
+  const hace30 = now - 30 * SRS.DAY;
+  const repasos30 = reg.filter(r => r.ts >= hace30 && r.estadoAntes === 'repaso');
+  const retencion = repasos30.length ? repasos30.filter(r => r.correcta).length / repasos30.length : null;
+
+  const actividad = [];
+  for (let i = 29; i >= 0; i--) {
+    const ts = now - i * SRS.DAY;
+    const key = SRS.dayKey(ts);
+    const ds = [...S.dias.values()].filter(d => d.dia === key);
+    const n = ds.reduce((s, d) => s + d.total, 0);
+    const ac = ds.reduce((s, d) => s + d.aciertos, 0);
+    actividad.push({ v: n, etiqueta: i === 0 ? 'Hoy' : fechaCorta(ts), tip: `${i === 0 ? 'Hoy' : fechaCorta(ts)}: ${n} respondidas${n ? ` · ${pctTxt(ac, n)} de aciertos` : ''}` });
+  }
+  const total30 = actividad.reduce((s, b) => s + b.v, 0);
+  const diasActivos = actividad.filter(b => b.v).length;
+
+  // Pronóstico: tarjetas que tocan cada uno de los próximos 14 días (hoy incluye las atrasadas y en aprendizaje)
+  const inicioHoy = SRS.dayStart(now);
+  const pronostico = Array.from({ length: 14 }, (_, i) => {
+    const ts = inicioHoy + i * SRS.DAY;
+    const etiqueta = i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : fechaCorta(ts);
+    return { v: 0, etiqueta, tip: '' };
+  });
+  prog.forEach(p => {
+    if (p.estado === 'nuevo') return;
+    const i = Math.max(0, Math.floor((p.vence - inicioHoy) / SRS.DAY));
+    if (i < 14) pronostico[i].v++;
+  });
+  pronostico.forEach(b => { b.tip = `${b.etiqueta}: ${b.v} ${b.v === 1 ? 'tarjeta' : 'tarjetas'} para repasar`; });
+  const semana = pronostico.slice(0, 7).reduce((s, b) => s + b.v, 0);
+
+  const filasMazos = mazos.map(m => {
+    const ps = tarjetasDe(m.id).map(progresoDe);
+    const c = conteosMazo(m);
+    const ds = [...S.dias.values()].filter(d => d.mazoId === m.id && new Date(d.dia + 'T12:00:00').getTime() >= hace30);
+    const n = ds.reduce((s, d) => s + d.total, 0), ac = ds.reduce((s, d) => s + d.aciertos, 0);
+    const dom = ps.filter(p => p.estado === 'repaso' && p.intervalo >= 21).length;
+    return `<tr>
+      <td><button class="link" type="button" data-open="${esc(m.id)}">${esc(m.nombre)}</button></td>
+      <td class="num">${ps.length}</td>
+      <td class="num">${ps.filter(p => p.estado === 'nuevo').length}</td>
+      <td class="num">${dom} <span class="muted">(${pctTxt(dom, ps.length)})</span></td>
+      <td class="num">${pctTxt(ac, n)}${n ? ` <span class="muted">(${n})</span>` : ''}</td>
+      <td class="num">${c.nuevas + c.aprend + c.repaso}</td>
+    </tr>`;
+  }).join('');
+
+  const estado = (n, txt, color) => `<div class="stat"><div class="v" style="color:${color}">${n}</div><div class="l">${txt}</div><div class="meter" style="margin-top:8px"><i style="width:${(n / total * 100).toFixed(1)}%;background:${color}"></i></div></div>`;
+
+  $('#stats-body').innerHTML = `
+    <div class="today">
+      <div class="stat"><div class="v">${respHoy}</div><div class="l">Respondidas hoy · ${pctTxt(acHoy, respHoy)} aciertos</div></div>
+      <div class="stat"><div class="v">${segHoy == null ? '—' : `${segHoy.toLocaleString('es', { maximumFractionDigits: 1 })} s`}</div><div class="l">Tiempo medio por respuesta hoy</div></div>
+      <div class="stat"><div class="v">${retencion == null ? '—' : `${Math.round(retencion * 100)}%`}</div><div class="l">Recuerdo en repasos (30 días)</div></div>
+      <div class="stat"><div class="v">${racha()} <small class="muted" style="font-size:.9rem">/ ${mejorRacha()}</small></div><div class="l">Días seguidos / mejor racha</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Estado de tus ${total} tarjetas</h3></div>
+      <div class="today">
+        ${estado(sinVer, 'Sin ver', 'var(--new)')}
+        ${estado(aprend, 'Aprendiendo', 'var(--learn)')}
+        ${estado(repaso, 'En repaso', 'var(--accent)')}
+        ${estado(dominadas, 'Dominadas (21+ días)', 'var(--good)')}
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card c7">
+        <div class="card-h"><h3>Respuestas por día</h3><span class="chip">Últimos 30 días</span></div>
+        <p class="muted chart-sub">${total30} respuestas en ${diasActivos} ${diasActivos === 1 ? 'día' : 'días'} de estudio</p>
+        ${graficoBarras(actividad, { cadaEtiqueta: 7, resaltarUltima: true, vacio: 'Aún no hay respuestas en los últimos 30 días' })}
+      </div>
+      <div class="card c5">
+        <div class="card-h"><h3>Repasos que vienen</h3><span class="chip">Próximos 14 días</span></div>
+        <p class="muted chart-sub">${semana} ${semana === 1 ? 'tarjeta' : 'tarjetas'} en los próximos 7 días (sin contar las nuevas)</p>
+        ${graficoBarras(pronostico, { cadaEtiqueta: 3, vacio: 'No hay repasos programados todavía' })}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Por mazo</h3></div>
+      <div class="table-wrap"><table class="log-table">
+        <thead><tr><th>Mazo</th><th>Tarjetas</th><th>Sin ver</th><th>Dominadas</th><th>Aciertos 30 días</th><th>Para hoy</th></tr></thead>
+        <tbody>${filasMazos}</tbody>
+      </table></div>
+    </div>`;
+}
+
+// Detalle de cada barra: al pasar el mouse, al enfocarla con el teclado o al tocarla
+function mostrarTip(btn) {
+  const tip = $('#barTip');
+  if (!btn) { tip.hidden = true; return; }
+  tip.textContent = btn.dataset.tip;
+  tip.hidden = false;
+  const r = btn.getBoundingClientRect();
+  const w = tip.offsetWidth;
+  tip.style.left = `${Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2))}px`;
+  tip.style.top = `${Math.max(8, r.top - tip.offsetHeight - 8)}px`;
+}
+document.addEventListener('pointerover', (e) => { const b = e.target.closest && e.target.closest('.bar-hit'); if (b) mostrarTip(b); });
+document.addEventListener('pointerout', (e) => { if (e.target.closest && e.target.closest('.bar-hit') && e.pointerType === 'mouse') mostrarTip(null); });
+document.addEventListener('focusin', (e) => { const b = e.target.closest && e.target.closest('.bar-hit'); mostrarTip(b || null); });
+window.addEventListener('scroll', () => mostrarTip(null), { passive: true });
 
 /* ---------- Vista: detalle de un mazo ---------- */
 function renderMazo() {
@@ -898,6 +1065,7 @@ function confirmarConBoton(btn, texto, fn) {
 }
 
 document.addEventListener('click', (e) => {
+  if (!e.target.closest('.bar-hit')) mostrarTip(null);
   const tab = e.target.closest('[data-tab]');
   if (tab) { go(tab.dataset.tab); return; }
   const g = e.target.closest('[data-go]');
