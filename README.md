@@ -32,7 +32,12 @@ No se pregunta Difícil / Bien / Fácil: la app lo calcula con el acierto, el ti
 - **Correcta a tiempo** → **Bien**.
 - **Correcta y rápida** (menos de 0,6 veces lo esperado) → **Fácil**, solo si ya la acertaste al menos 2 veces seguidas; si no, **Bien** (un acierto rápido al azar no la manda lejos).
 
-Al dar vuelta la tarjeta se ve la nota que puso la app, por qué y cuándo vuelve. Al acertar suena un tono corto; al fallar, el celular vibra (Android).
+Al dar vuelta la tarjeta aparece un check verde (acierto) o una cruz roja (fallo) grande y animada, suena un tono (sube al acertar, baja al fallar) y el celular vibra (Android). Debajo se ve la nota que puso la app, por qué y cuándo vuelve.
+
+### Ajustes (⚙️)
+
+- **Vibración** (activada por defecto) y **Sonidos** (activados por defecto). Se guardan en cada dispositivo; dentro de ZenBan duran mientras la ventana esté abierta.
+- **Registro de respuestas**: cada respuesta queda anotada (tiempo, tiempo esperado, relación entre ambos, aciertos seguidos, nota que puso la app, estado e intervalo antes y después). La tabla muestra, para cada nota, qué porcentaje de esas tarjetas se acertó la vez siguiente: si **Bien** y **Fácil** quedan cerca del 85–90 %, la calificación va bien; si **Fácil** queda bastante más bajo, el umbral de «rápido» es muy generoso. Se descarga en CSV o JSON para ajustar `notaAutomatica` y `tiempoEsperado` en `srs.js`. Se guardan las últimas 5000 respuestas (600 dentro de ZenBan) y se sincronizan como el resto de los datos.
 
 Respuesta libre: no importan mayúsculas, tildes ni signos, y se acepta un error de tipeo (dos en respuestas de 10 letras o más).
 
@@ -53,7 +58,7 @@ Dentro de ZenBan la ventana va aislada, así que sus mazos y su progreso se guar
 ## Cuenta de Google y sincronización
 
 - Funciona sin conexión y sin iniciar sesión: los datos se guardan al instante en el dispositivo (IndexedDB).
-- Con **Iniciar sesión** los datos se guardan también en la carpeta oculta de la app en tu Google Drive (`memospark-data.json`), así que son los mismos en el PC y en el celular. Se combinan registro por registro (mazos, tarjetas, progreso de cada tarjeta y conteo de cada día).
+- Con **Iniciar sesión** los datos se guardan también en la carpeta oculta de la app en tu Google Drive (`memospark-data.json`), así que son los mismos en el PC y en el celular. Se combinan registro por registro (mazos, tarjetas, progreso de cada tarjeta, conteo de cada día y registro de respuestas).
 - El punto junto a tu foto indica el estado: verde sincronizado, amarillo pendiente o sin conexión, rojo error.
 
 ## Instalar como app

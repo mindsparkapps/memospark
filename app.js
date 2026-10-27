@@ -4,13 +4,23 @@
 // Dentro de ZenBan: la página queda aislada (sin IndexedDB), así que todo se guarda en el objeto del lienzo.
 
 // 1.0 primera versión · 1.1 calificación automática (acierto, tiempo y aciertos seguidos), sonido al acertar,
-// respuesta libre que se escribe y se comprueba
-const APP_VERSION = '1.1';
-const STORES = ['mazos', 'tarjetas', 'progreso', 'dias'];
+// respuesta libre que se escribe y se comprueba · 1.2 registro de respuestas, sonido de fallo, check / cruz animados,
+// ajustes (vibración y sonido)
+const APP_VERSION = '1.2';
+const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
-const S = { mazos: new Map(), tarjetas: new Map(), progreso: new Map(), dias: new Map() };
+const S = { mazos: new Map(), tarjetas: new Map(), progreso: new Map(), dias: new Map(), registro: new Map() };
 let readOnly = false;
+
+// Ajustes de este dispositivo (no se sincronizan: vibrar en el celular no tiene por qué valer para el PC).
+// Dentro de ZenBan no hay localStorage, así que ahí duran mientras la ventana esté abierta.
+const AJUSTES_KEY = 'memospark_ajustes';
+const ajustes = { vibrar: true, sonido: true };
+try { Object.assign(ajustes, JSON.parse(localStorage.getItem(AJUSTES_KEY) || '{}')); } catch (e) {}
+function guardarAjustes() {
+  try { localStorage.setItem(AJUSTES_KEY, JSON.stringify(ajustes)); } catch (e) {}
+}
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -28,7 +38,8 @@ window.showToast = (msg) => toast(msg);
 /* ---------- Almacenamiento ---------- */
 function openDb() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('memospark', 1);
+    // v2: almacén «registro»
+    const req = indexedDB.open('memospark', 2);
     req.onupgradeneeded = () => {
       const d = req.result;
       STORES.forEach(s => { if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: 'id' }); });
@@ -552,28 +563,52 @@ const tiempoRespuesta = (a) => performance.now() - a.inicio - a.oculto - (a.ocul
 
 const contarPalabras = (s) => (String(s || '').replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/[#*_`>\[\]()|-]/g, ' ').match(/[\p{L}\p{N}]+/gu) || []).length;
 
-// Sonido de acierto: dos notas cortas generadas en el momento (sin archivos de audio)
+// Sonidos generados en el momento (sin archivos de audio). notas: [frecuencia inicial, final, retraso, duración]
 let audioCtx = null;
-function sonarAcierto() {
+function tocar(tipo, notas, volumen) {
+  if (!ajustes.sonido) return;
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     audioCtx = audioCtx || new AC();
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const t0 = audioCtx.currentTime;
-    [[880, 0], [1318.5, 0.09]].forEach(([freq, delay]) => {
+    notas.forEach(([f1, f2, delay, dur]) => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
+      osc.type = tipo;
+      osc.frequency.setValueAtTime(f1, t0 + delay);
+      osc.frequency.exponentialRampToValueAtTime(f2, t0 + delay + dur);
       gain.gain.setValueAtTime(0.0001, t0 + delay);
-      gain.gain.exponentialRampToValueAtTime(0.22, t0 + delay + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.28);
+      gain.gain.exponentialRampToValueAtTime(volumen, t0 + delay + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + dur);
       osc.connect(gain).connect(audioCtx.destination);
       osc.start(t0 + delay);
-      osc.stop(t0 + delay + 0.3);
+      osc.stop(t0 + delay + dur + 0.02);
     });
   } catch (e) {}
+}
+// Acierto: dos notas que suben. Fallo: dos notas graves que bajan.
+const sonarAcierto = () => tocar('sine', [[880, 880, 0, 0.28], [1318.5, 1318.5, 0.09, 0.28]], 0.22);
+const sonarFallo = () => tocar('triangle', [[330, 260, 0, 0.18], [247, 165, 0.16, 0.32]], 0.28);
+
+function vibrar(patron) {
+  if (!ajustes.vibrar || !navigator.vibrate) return;
+  try { navigator.vibrate(patron); } catch (e) {}
+}
+
+// Check verde o cruz roja grande, animada sobre la tarjeta
+function mostrarSello(ok) {
+  const flip = $('#flip');
+  if (!flip) return;
+  const sello = document.createElement('div');
+  sello.className = `sello ${ok ? 'ok' : 'bad'}`;
+  sello.setAttribute('aria-hidden', 'true');
+  sello.innerHTML = ok
+    ? '<svg viewBox="0 0 120 120"><circle class="aro" cx="60" cy="60" r="52"/><path class="trazo" d="M34 62 52 80 88 42"/></svg>'
+    : '<svg viewBox="0 0 120 120"><circle class="aro" cx="60" cy="60" r="52"/><path class="trazo" d="M40 40 80 80"/><path class="trazo t2" d="M80 40 40 80"/></svg>';
+  flip.appendChild(sello);
+  sello.addEventListener('animationend', (e) => { if (e.target === sello) sello.remove(); });
 }
 
 const ICON_OK = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -673,17 +708,16 @@ function evaluar(noLaSe = false) {
   a.resultado = ok ? 'ok' : 'bad';
   // Calificación automática: acierto, tiempo de respuesta y aciertos seguidos de la tarjeta
   const palabras = contarPalabras(a.t.pregunta) + a.opciones.reduce((n, o) => n + contarPalabras(o.t), 0);
-  const auto = SRS.notaAutomatica({
-    correcta: ok, ms: a.ms,
-    esperadoMs: SRS.tiempoEsperado(palabras, a.modo === 'libre' ? contarPalabras(a.t.respuesta.split(/\s+\/\s+/)[0]) : 0),
-    racha: a.p.racha || 0
-  });
+  a.palabras = palabras;
+  a.esperadoMs = SRS.tiempoEsperado(palabras, a.modo === 'libre' ? contarPalabras(a.t.respuesta.split(/\s+\/\s+/)[0]) : 0);
+  const auto = SRS.notaAutomatica({ correcta: ok, ms: a.ms, esperadoMs: a.esperadoMs, racha: a.p.racha || 0 });
   a.nota = auto.nota;
   a.ritmo = auto.ritmo;
-  if (ok) sonarAcierto();
-  else if (navigator.vibrate) { try { navigator.vibrate(80); } catch (e) {} }
+  if (ok) { sonarAcierto(); vibrar(30); }
+  else { sonarFallo(); vibrar([90, 60, 90]); }
   renderBack();
   $('#flip').classList.add('flipped');
+  mostrarSello(ok);
 }
 
 function renderBack() {
@@ -738,7 +772,68 @@ async function continuar() {
   delete prog.orden;
   await save('progreso', [prog]);
   await save('dias', [d2]);
+  await registrar(a, antes, despues);
   nextCard();
+}
+
+/* ---------- Registro de respuestas (para ir ajustando la calificación automática) ---------- */
+// Una fila por respuesta con lo que usó la calificación (tiempo, tiempo esperado, aciertos seguidos)
+// y lo que decidió. Comparando con la respuesta siguiente de la misma tarjeta se ve si la nota fue acertada:
+// si las «Fácil» se olvidan seguido, el umbral de rápido es muy generoso, etc.
+const MAX_REGISTRO = IN_ZENBAN ? 600 : 5000;
+async function registrar(a, antes, despues) {
+  const now = Date.now();
+  const fila = {
+    id: `r${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    ts: now, tarjetaId: antes.id, mazoId: antes.mazoId, modo: a.modo,
+    correcta: a.resultado === 'ok', ms: Math.round(a.ms), esperadoMs: Math.round(a.esperadoMs), palabras: a.palabras,
+    relacion: Math.round(a.ms / Math.max(1000, a.esperadoMs) * 100) / 100,
+    ritmo: a.ritmo, nota: a.nota, rachaAntes: antes.racha || 0,
+    estadoAntes: antes.estado, intervaloAntes: antes.intervalo || 0, intervaloDespues: despues.estado === 'repaso' ? despues.intervalo : 0,
+    facilidad: despues.facilidad,
+    diasDesdeAnterior: antes.ultima ? Math.round((now - antes.ultima) / SRS.DAY * 100) / 100 : null
+  };
+  const filas = [...S.registro.values()].sort((x, y) => x.ts - y.ts);
+  const sobran = filas.length + 1 - MAX_REGISTRO;
+  // Se borran de a varias para no reescribir el registro en cada respuesta
+  const borrar = sobran > 0 ? filas.slice(0, sobran + Math.round(MAX_REGISTRO * 0.05)).map(f => f.id) : [];
+  await save('registro', [fila], borrar);
+}
+
+// Para cada nota: cuántas veces se dio y qué pasó la vez siguiente que apareció la misma tarjeta
+function analizarRegistro() {
+  const filas = [...S.registro.values()].sort((x, y) => x.ts - y.ts);
+  const porTarjeta = new Map();
+  filas.forEach(f => { if (!porTarjeta.has(f.tarjetaId)) porTarjeta.set(f.tarjetaId, []); porTarjeta.get(f.tarjetaId).push(f); });
+  const res = { 1: [], 2: [], 3: [], 4: [] };
+  porTarjeta.forEach(lista => lista.forEach((f, i) => res[f.nota] && res[f.nota].push({ f, sig: lista[i + 1] || null })));
+  const mediana = (v) => { if (!v.length) return null; const s = [...v].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  return {
+    total: filas.length,
+    desde: filas.length ? filas[0].ts : null,
+    aciertos: filas.filter(f => f.correcta).length,
+    notas: [1, 2, 3, 4].map(n => {
+      const items = res[n];
+      const conSig = items.filter(x => x.sig);
+      return {
+        nota: n, n: items.length,
+        relacion: mediana(items.map(x => x.f.relacion)),
+        siguientes: conSig.length,
+        recuerdo: conSig.length ? conSig.filter(x => x.sig.correcta).length / conSig.length : null
+      };
+    })
+  };
+}
+
+function registroCsv() {
+  const cols = ['ts', 'fecha', 'tarjetaId', 'mazoId', 'modo', 'correcta', 'ms', 'esperadoMs', 'palabras', 'relacion', 'ritmo', 'nota', 'rachaAntes', 'estadoAntes', 'intervaloAntes', 'intervaloDespues', 'facilidad', 'diasDesdeAnterior', 'pregunta'];
+  const q = (v) => { const s = v == null ? '' : String(v); return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const filas = [...S.registro.values()].sort((x, y) => x.ts - y.ts).map(f => {
+    const t = S.tarjetas.get(f.tarjetaId);
+    const extra = { fecha: new Date(f.ts).toISOString(), pregunta: t ? t.pregunta.split('\n')[0] : '' };
+    return cols.map(c => q(c in extra ? extra[c] : f[c])).join(',');
+  });
+  return [cols.join(','), ...filas].join('\n');
 }
 
 function renderFin(espera) {
@@ -761,6 +856,33 @@ function estudiarAdelantado() {
   clearTimeout(study.espera);
   mostrarTarjeta(S.tarjetas.get(lista[0].id), 'aprendiendo');
 }
+
+/* ---------- Ajustes ---------- */
+function abrirAjustes() {
+  $('#optVibrar').checked = ajustes.vibrar;
+  $('#optSonido').checked = ajustes.sonido;
+  const puede = !!navigator.vibrate;
+  $('#optVibrar').disabled = !puede;
+  $('#vibrarNota').textContent = puede ? 'El celular vibra al fallar (y suave al acertar).' : 'Este dispositivo no permite vibrar (PC o iPhone).';
+  renderRegistro();
+  $('#dlg-settings').showModal();
+}
+
+function renderRegistro() {
+  const r = analizarRegistro();
+  $('#regTotal').textContent = r.total ? `${r.total} respuestas desde ${new Date(r.desde).toLocaleDateString('es')}` : 'Vacío';
+  if (!r.total) { $('#regTabla').innerHTML = '<p class="muted" style="font-size:.85rem">Aún no hay respuestas registradas.</p>'; return; }
+  const pct = (v) => v == null ? '—' : `${Math.round(v * 100)}%`;
+  $('#regTabla').innerHTML = `
+    <div class="table-wrap"><table class="log-table">
+      <thead><tr><th>Nota de la app</th><th>Veces</th><th>Tiempo / esperado</th><th>Acertó la vez siguiente</th></tr></thead>
+      <tbody>${r.notas.map(n => `<tr><td><span class="auto-grade g${n.nota}" style="margin:0"><span class="badge">${NOTA_TXT[n.nota]}</span></span></td><td class="num">${n.n}</td><td class="num">${n.relacion == null ? '—' : `×${n.relacion.toLocaleString('es')}`}</td><td class="num">${pct(n.recuerdo)}${n.siguientes ? ` <span class="muted">(${n.siguientes})</span>` : ''}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <p class="muted" style="font-size:.78rem;margin-top:6px">Aciertos totales: ${pct(r.aciertos / r.total)}. Lo ideal es que «Acertó la vez siguiente» quede cerca del 85–90 % en Bien y Fácil: si «Fácil» queda bastante más bajo, la app manda esas tarjetas demasiado lejos.</p>`;
+}
+
+$('#optVibrar').addEventListener('change', (e) => { ajustes.vibrar = e.target.checked; guardarAjustes(); if (ajustes.vibrar) vibrar(40); });
+$('#optSonido').addEventListener('change', (e) => { ajustes.sonido = e.target.checked; guardarAjustes(); if (ajustes.sonido) sonarAcierto(); });
 
 /* ---------- Acciones ---------- */
 let armado = null;
@@ -803,6 +925,15 @@ document.addEventListener('click', (e) => {
     case 'check': evaluar(); break;
     case 'dont-know': evaluar(true); break;
     case 'continue': continuar(); break;
+    case 'settings': abrirAjustes(); break;
+    case 'log-csv': descargar(`memospark-registro-${SRS.dayKey()}.csv`, registroCsv(), 'text/csv'); break;
+    case 'log-json': descargar(`memospark-registro-${SRS.dayKey()}.json`, JSON.stringify([...S.registro.values()].sort((x, y) => x.ts - y.ts), null, 1), 'application/json'); break;
+    case 'log-clear':
+      confirmarConBoton(act, '¿Borrar? Toca otra vez', async () => {
+        await save('registro', [], [...S.registro.keys()]);
+        toast('Registro borrado'); renderRegistro();
+      });
+      break;
     case 'copy-prompt': copiar(promptActual(), 'Instrucciones copiadas: pégalas en tu IA'); break;
     case 'share-prompt': navigator.share({ title: 'Mazo para MemoSpark', text: promptActual() }).catch(() => {}); break;
     case 'download-format': descargar('FORMATO-MemoSpark.md', promptActual()); break;
