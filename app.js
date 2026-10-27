@@ -3,7 +3,9 @@
 // Sola: se guardan en IndexedDB y sync.js los sincroniza con Google Drive.
 // Dentro de ZenBan: la página queda aislada (sin IndexedDB), así que todo se guarda en el objeto del lienzo.
 
-const APP_VERSION = '1.0';
+// 1.0 primera versión · 1.1 calificación automática (acierto, tiempo y aciertos seguidos), sonido al acertar,
+// respuesta libre que se escribe y se comprueba
+const APP_VERSION = '1.1';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -523,16 +525,59 @@ function nextCard() {
   if (!sig || sig.espera) { renderFin(sig && sig.espera); return; }
   const t = S.tarjetas.get(sig.p.id);
   if (!t) { study.ultimaId = sig.p.id; return renderFin(); }
+  mostrarTarjeta(t, sig.tipo);
+}
+
+function mostrarTarjeta(t, tipo) {
   const opciones = t.opciones && t.opciones.length ? shuffle(t.opciones) : [];
   const correctas = opciones.filter(o => o.ok).length;
-  study.actual = { t, p: S.progreso.get(t.id) || SRS.nuevo(t.id, t.mazoId), tipo: sig.tipo, opciones, modo: !opciones.length ? 'libre' : correctas > 1 ? 'multiple' : 'unica', elegidas: new Set(), resultado: null };
-  renderCounts(sig.tipo);
+  study.actual = {
+    t, p: S.progreso.get(t.id) || SRS.nuevo(t.id, t.mazoId), tipo, opciones,
+    modo: !opciones.length ? 'libre' : correctas > 1 ? 'multiple' : 'unica',
+    elegidas: new Set(), resultado: null,
+    inicio: performance.now(), oculto: 0, ocultoDesde: null
+  };
+  renderCounts(tipo);
   renderCard();
+}
+
+// Tiempo de respuesta sin contar el rato en que la app estuvo en segundo plano
+document.addEventListener('visibilitychange', () => {
+  const a = study && study.actual;
+  if (!a || a.resultado) return;
+  if (document.visibilityState === 'hidden') a.ocultoDesde = performance.now();
+  else if (a.ocultoDesde != null) { a.oculto += performance.now() - a.ocultoDesde; a.ocultoDesde = null; }
+});
+const tiempoRespuesta = (a) => performance.now() - a.inicio - a.oculto - (a.ocultoDesde != null ? performance.now() - a.ocultoDesde : 0);
+
+const contarPalabras = (s) => (String(s || '').replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/[#*_`>\[\]()|-]/g, ' ').match(/[\p{L}\p{N}]+/gu) || []).length;
+
+// Sonido de acierto: dos notas cortas generadas en el momento (sin archivos de audio)
+let audioCtx = null;
+function sonarAcierto() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = audioCtx || new AC();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    [[880, 0], [1318.5, 0.09]].forEach(([freq, delay]) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0 + delay);
+      gain.gain.exponentialRampToValueAtTime(0.22, t0 + delay + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.28);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t0 + delay);
+      osc.stop(t0 + delay + 0.3);
+    });
+  } catch (e) {}
 }
 
 const ICON_OK = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_BAD = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m8 8 8 8m0-8-8 8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
-const ICON_EYE = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M5 12s2.6-4.5 7-4.5 7 4.5 7 4.5-2.6 4.5-7 4.5S5 12 5 12z" fill="none" stroke="#fff" stroke-width="1.8"/><circle cx="12" cy="12" r="2" fill="#fff"/></svg>';
 const LETRAS = 'ABCDEFGHIJ';
 const TIPO_TXT = { nuevo: 'Nueva', aprendiendo: 'Aprendiendo', repaso: 'Repaso' };
 
@@ -544,8 +589,11 @@ function renderCard() {
   let frente = '';
   if (a.modo === 'libre') {
     frente = `
-      <label class="f">Tu respuesta (opcional)<input type="text" id="libreInput" autocomplete="off" placeholder="Escríbela o piénsala"></label>
-      <button class="btn primary" type="button" data-act="reveal">Mostrar respuesta</button>`;
+      <label class="f">Tu respuesta<input type="text" id="libreInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Escribe la respuesta"></label>
+      <div class="toolbar">
+        <button class="btn primary" type="button" data-act="check" disabled>Comprobar</button>
+        <button class="btn ghost" type="button" data-act="dont-know">No la sé</button>
+      </div>`;
   } else {
     frente = `
       ${a.modo === 'multiple' ? '<div class="hint">Hay más de una correcta: márcalas todas y pulsa Comprobar.</div>' : ''}
@@ -560,11 +608,41 @@ function renderCard() {
       </div>
     </div>
     <div id="grades"></div>
-    <div class="kbd-help">${a.modo === 'libre' ? 'Espacio: mostrar respuesta' : `Teclas ${LETRAS.slice(0, a.opciones.length).split('').join(' ')} o 1–${a.opciones.length} para elegir`}</div>`;
-  if (a.modo === 'libre') setTimeout(() => { const i = $('#libreInput'); if (i && matchMedia('(hover:hover)').matches) i.focus(); }, 50);
+    <div class="kbd-help">${a.modo === 'libre' ? 'Enter: comprobar' : `Teclas ${LETRAS.slice(0, a.opciones.length).split('').join(' ')} o 1–${a.opciones.length} para elegir`}</div>`;
+  if (a.modo === 'libre') {
+    const inp = $('#libreInput');
+    inp.addEventListener('input', () => { $('#flip [data-act="check"]').disabled = !inp.value.trim(); });
+    setTimeout(() => { if (matchMedia('(hover:hover)').matches) inp.focus(); }, 50);
+  }
 }
 
-const normalizar = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+// Distancia de edición (para aceptar un error de tipeo en las respuestas libres)
+function distancia(a, b) {
+  const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = tmp;
+    }
+  }
+  return prev[b.length];
+}
+// Respuesta libre: sin importar mayúsculas, tildes ni signos; se acepta 1 error de tipeo (2 en respuestas largas).
+// Si la respuesta trae variantes separadas por « / », vale cualquiera.
+function respuestaCorrecta(escrita, respuesta) {
+  const e = normalizar(escrita);
+  if (!e) return false;
+  return String(respuesta || '').split(/\s+\/\s+/).map(normalizar).filter(Boolean).some(r => {
+    if (r === e) return true;
+    const tolerancia = r.length >= 10 ? 2 : r.length >= 5 ? 1 : 0;
+    return tolerancia > 0 && distancia(e, r) <= tolerancia;
+  });
+}
+
+const normalizar =(s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 function elegirOpcion(i) {
   const a = study && study.actual;
@@ -579,18 +657,31 @@ function elegirOpcion(i) {
   $('#flip [data-act="check"]').disabled = !a.elegidas.size;
 }
 
-function evaluar() {
+// noLaSe: en respuesta libre, rendirse cuenta como error
+function evaluar(noLaSe = false) {
   const a = study.actual;
   if (a.resultado) return;
+  a.ms = tiempoRespuesta(a);
+  let ok;
   if (a.modo === 'libre') {
-    const escrita = ($('#libreInput') || {}).value || '';
-    a.escrita = escrita.trim();
-    a.resultado = !a.escrita ? 'neutral' : normalizar(a.escrita) === normalizar(a.t.respuesta) ? 'ok' : 'revisar';
+    a.escrita = noLaSe ? '' : (($('#libreInput') || {}).value || '').trim();
+    if (!a.escrita && !noLaSe) return;
+    ok = respuestaCorrecta(a.escrita, a.t.respuesta);
   } else {
-    const ok = a.opciones.every((o, i) => o.ok === a.elegidas.has(i));
-    a.resultado = ok ? 'ok' : 'bad';
-    if (!ok && navigator.vibrate) { try { navigator.vibrate(80); } catch (e) {} }
+    ok = a.opciones.every((o, i) => o.ok === a.elegidas.has(i));
   }
+  a.resultado = ok ? 'ok' : 'bad';
+  // Calificación automática: acierto, tiempo de respuesta y aciertos seguidos de la tarjeta
+  const palabras = contarPalabras(a.t.pregunta) + a.opciones.reduce((n, o) => n + contarPalabras(o.t), 0);
+  const auto = SRS.notaAutomatica({
+    correcta: ok, ms: a.ms,
+    esperadoMs: SRS.tiempoEsperado(palabras, a.modo === 'libre' ? contarPalabras(a.t.respuesta.split(/\s+\/\s+/)[0]) : 0),
+    racha: a.p.racha || 0
+  });
+  a.nota = auto.nota;
+  a.ritmo = auto.ritmo;
+  if (ok) sonarAcierto();
+  else if (navigator.vibrate) { try { navigator.vibrate(80); } catch (e) {} }
   renderBack();
   $('#flip').classList.add('flipped');
 }
@@ -599,14 +690,11 @@ function renderBack() {
   const a = study.actual;
   const { t, p } = a;
   let verdict, cuerpo;
+  verdict = a.resultado === 'ok' ? `<div class="verdict ok">${ICON_OK}<span>¡Correcto!</span></div>` : `<div class="verdict bad">${ICON_BAD}<span>${a.modo === 'libre' && !a.escrita ? 'Para la próxima' : 'Incorrecto'}</span></div>`;
   if (a.modo === 'libre') {
-    verdict = a.resultado === 'ok' ? `<div class="verdict ok">${ICON_OK}<span>¡Correcto!</span></div>`
-      : a.resultado === 'revisar' ? `<div class="verdict bad">${ICON_BAD}<span>Compara tu respuesta</span></div>`
-      : `<div class="verdict neutral">${ICON_EYE}<span>¿La sabías?</span></div>`;
     cuerpo = `${a.escrita ? `<div class="answer-box"><div class="l">Tu respuesta</div>${esc(a.escrita)}</div>` : ''}
       <div class="answer-box"><div class="l">Respuesta</div><div class="md" style="font-size:1.15rem;font-weight:600">${MazoMD.render(t.respuesta)}</div></div>`;
   } else {
-    verdict = a.resultado === 'ok' ? `<div class="verdict ok">${ICON_OK}<span>¡Correcto!</span></div>` : `<div class="verdict bad">${ICON_BAD}<span>Incorrecto</span></div>`;
     cuerpo = `<div class="opts">${a.opciones.map((o, i) => {
       const elegida = a.elegidas.has(i);
       const cls = o.ok ? 'is-ok' : elegida ? 'is-bad' : '';
@@ -618,21 +706,24 @@ function renderBack() {
   const explic = t.explicacion ? `<div class="explain"><div class="l">Explicación</div><div class="md">${MazoMD.render(t.explicacion)}</div></div>` : '';
   $('#cardBack').innerHTML = `${verdict}<div class="q-small md">${MazoMD.render(t.pregunta.split('\n')[0])}</div>${cuerpo}${explic}`;
 
-  // Botones de calificación (como en Anki): si fallaste, la tarjeta vuelve pronto
-  const btn = (n, txt, cls = '') => `<button class="grade g${n} ${cls}" type="button" data-grade="${n}">${txt}<small>${SRS.cuando(p, n)}</small></button>`;
-  let html;
-  if (a.resultado === 'bad') html = `<div class="grades one"><button class="grade main" type="button" data-grade="1">Continuar<small>la verás de nuevo en ${SRS.cuando(p, 1)}</small></button></div>`;
-  else if (a.resultado === 'ok' && a.modo !== 'libre') html = `<div class="grades">${btn(2, 'Difícil')}${btn(3, 'Bien', 'main')}${btn(4, 'Fácil')}</div>`;
-  else html = `<div class="grades four">${btn(1, 'Otra vez')}${btn(2, 'Difícil')}${btn(3, 'Bien', a.resultado === 'ok' ? 'main' : '')}${btn(4, 'Fácil')}</div>`;
-  $('#grades').innerHTML = html;
-  $('.kbd-help').textContent = a.resultado === 'bad' ? 'Espacio o Enter: continuar' : a.modo === 'libre' || a.resultado !== 'ok' ? '1 Otra vez · 2 Difícil · 3 Bien · 4 Fácil' : '2 Difícil · 3 Bien (Espacio) · 4 Fácil';
+  // La calificación la decide la app; solo se muestra por qué y cuándo vuelve la tarjeta
+  const seg = (a.ms / 1000).toLocaleString('es', { maximumFractionDigits: 1 });
+  const racha = a.resultado === 'ok' ? (p.racha || 0) + 1 : 0;
+  const motivo = a.resultado === 'bad' ? 'Vuelve a aparecer en un momento'
+    : a.ritmo === 'lento' ? `Respondiste en ${seg} s: con calma, la repasarás antes`
+    : a.ritmo === 'rapido' && a.nota === 4 ? `Respondiste en ${seg} s y la llevas ${racha} veces seguidas: la verás más adelante`
+    : `Respondiste en ${seg} s${racha > 1 ? ` · ${racha} aciertos seguidos` : ''}`;
+  $('#grades').innerHTML = `
+    <div class="auto-grade g${a.nota}"><span class="badge">${NOTA_TXT[a.nota]}</span><span>${esc(motivo)}</span></div>
+    <div class="grades one"><button class="grade main" type="button" data-act="continue">Continuar<small>vuelve en ${SRS.cuando(p, a.nota)}</small></button></div>`;
+  $('.kbd-help').textContent = 'Espacio o Enter: continuar';
 }
+const NOTA_TXT = { 1: 'Otra vez', 2: 'Difícil', 3: 'Bien', 4: 'Fácil' };
 
-async function calificar(nota) {
+async function continuar() {
   const a = study && study.actual;
   if (!a || !a.resultado) return;
-  if (a.resultado === 'bad') nota = 1;
-  if (a.resultado === 'ok' && a.modo !== 'libre' && nota === 1) nota = 3;
+  const nota = a.nota;
   const antes = a.p;
   const despues = SRS.responder(antes, nota);
   const acierto = nota > 1;
@@ -667,13 +758,8 @@ function renderFin(espera) {
 function estudiarAdelantado() {
   const lista = candidatos(study.target).filter(SRS.enAprendizaje).sort((a, b) => a.vence - b.vence);
   if (!lista.length) return nextCard();
-  const p = lista[0];
-  const t = S.tarjetas.get(p.id);
-  const opciones = t.opciones && t.opciones.length ? shuffle(t.opciones) : [];
-  study.actual = { t, p: S.progreso.get(t.id), tipo: 'aprendiendo', opciones, modo: !opciones.length ? 'libre' : opciones.filter(o => o.ok).length > 1 ? 'multiple' : 'unica', elegidas: new Set(), resultado: null };
   clearTimeout(study.espera);
-  renderCounts('aprendiendo');
-  renderCard();
+  mostrarTarjeta(S.tarjetas.get(lista[0].id), 'aprendiendo');
 }
 
 /* ---------- Acciones ---------- */
@@ -699,8 +785,6 @@ document.addEventListener('click', (e) => {
   if (st) { startStudy(st.dataset.study); return; }
   const opt = e.target.closest('[data-opt]');
   if (opt) { elegirOpcion(+opt.dataset.opt); return; }
-  const gr = e.target.closest('[data-grade]');
-  if (gr) { calificar(+gr.dataset.grade); return; }
   const im = e.target.closest('[data-imode]');
   if (im) { setImpMode(im.dataset.imode); return; }
   const close = e.target.closest('[data-close]');
@@ -717,7 +801,8 @@ document.addEventListener('click', (e) => {
       break;
     case 'study-ahead': estudiarAdelantado(); break;
     case 'check': evaluar(); break;
-    case 'reveal': evaluar(); break;
+    case 'dont-know': evaluar(true); break;
+    case 'continue': continuar(); break;
     case 'copy-prompt': copiar(promptActual(), 'Instrucciones copiadas: pégalas en tu IA'); break;
     case 'share-prompt': navigator.share({ title: 'Mazo para MemoSpark', text: promptActual() }).catch(() => {}); break;
     case 'download-format': descargar('FORMATO-MemoSpark.md', promptActual()); break;
@@ -752,7 +837,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (!a.resultado) {
     if (a.modo === 'libre') {
-      if (e.key === 'Enter' || (e.key === ' ' && !inInput)) { e.preventDefault(); evaluar(); }
+      if (e.key === 'Enter') { e.preventDefault(); evaluar(); }
       return;
     }
     if (inInput) return;
@@ -764,8 +849,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (inInput && e.key !== 'Enter') return;
-  if (/^[1-4]$/.test(e.key)) { e.preventDefault(); calificar(+e.key); return; }
-  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); calificar(a.resultado === 'bad' ? 1 : 3); }
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); continuar(); }
 });
 
 ['fTema', 'fCantidad', 'fNivel', 'fExtra'].forEach(id => $(`#${id}`).addEventListener('input', renderFormato));

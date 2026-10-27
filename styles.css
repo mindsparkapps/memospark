@@ -200,6 +200,13 @@ pre.prompt{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(-
 .grade.g1{color:var(--bad)}.grade.g2{color:var(--warn)}.grade.g3{color:var(--good)}.grade.g4{color:var(--new)}
 .grade.main{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .grade.main small{color:inherit;opacity:.8}
+.auto-grade{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:.88rem;color:var(--muted);justify-content:center;text-align:left}
+.auto-grade .badge{flex:none;font-weight:700;font-size:.78rem;padding:3px 10px;border-radius:999px;background:var(--surface-2)}
+.auto-grade.g1 .badge{color:var(--bad);background:var(--bad-soft)}
+.auto-grade.g2 .badge{color:var(--warn);background:var(--warn-soft)}
+.auto-grade.g3 .badge{color:var(--good);background:var(--good-soft)}
+.auto-grade.g4 .badge{color:var(--new);background:color-mix(in srgb,var(--new) 16%,transparent)}
+.grades.one{margin-top:10px}
 .kbd-help{text-align:center;font-size:.75rem;color:var(--muted);margin-top:10px}
 @media (hover:none){.kbd-help{display:none}}
 @media (max-width:480px){.grades.four{grid-template-columns:repeat(2,minmax(0,1fr))}.face{padding:18px;min-height:300px}.qtext p:first-child{font-size:1.22rem}.qtext img,.md img{max-height:200px}}

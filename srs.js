@@ -1,6 +1,6 @@
 // ===== MemoSpark - Repetición espaciada (algoritmo SM-2, con los mismos valores por defecto que Anki) =====
 // Estados de una tarjeta: nuevo -> aprendiendo (pasos de 1 y 10 min) -> repaso (días) -> si se falla, reaprendiendo.
-// Botones: 1 Otra vez, 2 Difícil, 3 Bien, 4 Fácil.
+// Notas: 1 Otra vez, 2 Difícil, 3 Bien, 4 Fácil. La app las elige sola (notaAutomatica).
 
 const SRS = (() => {
   const MIN = 60 * 1000;
@@ -42,9 +42,29 @@ const SRS = (() => {
   }
   const clampIv = (d) => Math.min(CFG.intervaloMaximo, Math.max(1, d));
 
+  // Tiempo que debería tomar responder sin dudar: leer la pregunta y las alternativas (o escribir la respuesta)
+  function tiempoEsperado(palabras, escribir = 0) {
+    return 2500 + palabras * 300 + escribir * 400;
+  }
+
+  // La app califica sola, sin preguntar Difícil / Bien / Fácil:
+  // - incorrecta -> Otra vez
+  // - correcta pero lenta (más de 1,5 veces lo esperado) -> Difícil
+  // - correcta a tiempo -> Bien
+  // - correcta y rápida (menos de 0,6 veces lo esperado) -> Fácil, pero solo si ya la acertaste
+  //   al menos 2 veces seguidas antes (así un acierto rápido al azar no la manda lejos)
+  function notaAutomatica({ correcta, ms, esperadoMs, racha = 0 }) {
+    if (!correcta) return { nota: 1, ritmo: 'error' };
+    const r = ms / Math.max(1000, esperadoMs);
+    if (r > 1.5) return { nota: 2, ritmo: 'lento' };
+    if (r < 0.6) return racha >= 2 ? { nota: 4, ritmo: 'rapido' } : { nota: 3, ritmo: 'rapido' };
+    return { nota: 3, ritmo: 'normal' };
+  }
+
   // Devuelve el nuevo progreso tras responder `nota` (1-4). No modifica el original.
+  // `racha` cuenta los aciertos seguidos de la tarjeta (vuelve a 0 al fallar).
   function responder(p, nota, now = Date.now(), rnd = Math.random()) {
-    const q = { ...p, reps: (p.reps || 0) + 1, ultima: now };
+    const q = { ...p, reps: (p.reps || 0) + 1, ultima: now, racha: nota > 1 ? (p.racha || 0) + 1 : 0 };
     const learning = p.estado === 'nuevo' || p.estado === 'aprendiendo';
     const relearning = p.estado === 'reaprendiendo';
 
@@ -152,5 +172,5 @@ const SRS = (() => {
     return { nuevas: Math.min(nuevas, Math.max(0, nuevasRestantes)), nuevasTotal: nuevas, aprend, repaso };
   }
 
-  return { CFG, DAY, MIN, dayStart, dayKey, nuevo, responder, cuando, formatoDias, siguiente, conteos, enAprendizaje };
+  return { CFG, DAY, MIN, dayStart, dayKey, nuevo, responder, tiempoEsperado, notaAutomatica, cuando, formatoDias, siguiente, conteos, enAprendizaje };
 })();

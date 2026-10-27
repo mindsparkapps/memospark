@@ -31,7 +31,7 @@ Reglas:
 1. Cada mazo empieza con una línea "# Nombre". Puede haber varios mazos en el mismo archivo.
 2. Cada tarjeta empieza con una línea "## " seguida de la pregunta.
 3. Las alternativas son líneas "- [x] " (correcta) o "- [ ] " (incorrecta). Usa 4 alternativas por tarjeta, todas plausibles y de largo parecido. Si hay más de una correcta, márcalas todas con [x].
-4. Para preguntas sin alternativas, usa una línea "Respuesta: …" en lugar de las alternativas.
+4. Para preguntas sin alternativas, usa una línea "Respuesta: …" en lugar de las alternativas. Hay que escribir esa respuesta para acertar, así que debe ser corta (una a tres palabras) y exacta. Si se aceptan varias formas, sepáralas con " / " (por ejemplo: Respuesta: Varsovia / Warszawa).
 5. Todo lo que vaya después de las alternativas (o de "Respuesta:") es la explicación.
 6. Se permite Markdown: **negrita**, *cursiva*, \`código\`, bloques \`\`\`, listas y enlaces.
 7. Imágenes: ![texto](dirección). Usa solo imágenes públicas. Lo más seguro es Wikimedia Commons con esta forma: https://commons.wikimedia.org/wiki/Special:FilePath/NOMBRE_DEL_ARCHIVO.jpg?width=400 (con el nombre exacto de un archivo que exista en Commons). Si no estás seguro de que la imagen existe, no pongas imagen. También vale el nombre de un archivo (por ejemplo ![mapa](mapa.png)) si yo voy a cargar esa imagen junto al .md.

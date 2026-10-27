@@ -9,7 +9,7 @@ App publicada: https://mindsparkapps.github.io/memospark/
 1. **Crear con IA**: escribe el tema, la cantidad de tarjetas y el nivel; **Copiar instrucciones** y pégalas en ChatGPT, Claude, Gemini…
 2. Guarda la respuesta como `.md` (o cópiala).
 3. **Importar .md**: elige el archivo (y sus imágenes, si usa propias) o pega el texto. Antes de importar ves cuántas tarjetas hay y qué hay que revisar.
-4. **Estudiar**: elige una alternativa → la tarjeta se da vuelta → si acertaste, elige **Difícil / Bien / Fácil**; si fallaste, vuelve en 1 minuto.
+4. **Estudiar**: elige una alternativa (o escribe la respuesta) → la tarjeta se da vuelta, suena si acertaste y la app decide sola cuándo volver a mostrártela.
 
 El formato completo está en [FORMATO.md](FORMATO.md).
 
@@ -22,9 +22,21 @@ Mismos valores por defecto que Anki:
 - **Fallo**: la tarjeta vuelve a aprendizaje (10 minutos), baja la facilidad y su intervalo vuelve a 1 día.
 - El día de estudio cambia a las 4 de la mañana. Los intervalos largos llevan un poco de azar para no amontonar repasos.
 
-Con alternativas, la app sabe si acertaste: un error cuenta siempre como **Otra vez**. En las tarjetas de respuesta libre te calificas tú (si escribes la respuesta y coincide, te lo indica).
+### Calificación automática
 
-Atajos de teclado: `A`–`D` o `1`–`4` para elegir, `Espacio` para **Bien** o continuar, `1`–`4` para calificar.
+No se pregunta Difícil / Bien / Fácil: la app lo calcula con el acierto, el tiempo de respuesta y los aciertos seguidos de la tarjeta.
+
+- **Incorrecta** (o «No la sé») → **Otra vez**: vuelve en 1 minuto (o 10 si ya estaba en repaso).
+- El tiempo esperado es 2,5 s + 0,3 s por palabra de la pregunta y las alternativas (+0,4 s por palabra a escribir en respuesta libre). No cuenta el rato con la app en segundo plano.
+- **Correcta y lenta** (más de 1,5 veces lo esperado) → **Difícil**.
+- **Correcta a tiempo** → **Bien**.
+- **Correcta y rápida** (menos de 0,6 veces lo esperado) → **Fácil**, solo si ya la acertaste al menos 2 veces seguidas; si no, **Bien** (un acierto rápido al azar no la manda lejos).
+
+Al dar vuelta la tarjeta se ve la nota que puso la app, por qué y cuándo vuelve. Al acertar suena un tono corto; al fallar, el celular vibra (Android).
+
+Respuesta libre: no importan mayúsculas, tildes ni signos, y se acepta un error de tipeo (dos en respuestas de 10 letras o más).
+
+Atajos de teclado: `A`–`D` o `1`–`4` para elegir, `Enter` para comprobar, `Espacio` o `Enter` para continuar.
 
 ## Plugin de ZenBan
 

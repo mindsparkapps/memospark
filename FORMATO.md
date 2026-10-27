@@ -43,7 +43,7 @@ Hay un mazo completo en [ejemplos/capitales-de-europa.md](ejemplos/capitales-de-
 | `## Pregunta` | Empieza una tarjeta. Las líneas siguientes (texto, código, listas, imágenes) también son parte de la pregunta. |
 | `- [x] texto` | Alternativa correcta. Si hay varias, hay que marcarlas todas para acertar. |
 | `- [ ] texto` | Alternativa incorrecta. Las alternativas se muestran en orden al azar. |
-| `Respuesta: texto` | En vez de alternativas: tarjeta de respuesta libre (escribes o piensas la respuesta y luego te calificas). |
+| `Respuesta: texto` | En vez de alternativas: tarjeta de respuesta libre. Se escribe la respuesta; no importan mayúsculas, tildes ni signos y se acepta un error de tipeo. Varias formas válidas: `Respuesta: Varsovia / Warszawa`. |
 | texto después de las alternativas | Explicación que aparece al dar vuelta la tarjeta. |
 | `![texto](dirección)` | Imagen. Dirección pública (lo más seguro: `https://commons.wikimedia.org/wiki/Special:FilePath/ARCHIVO.jpg?width=400`) o el nombre de un archivo que eliges junto al `.md` al importar. |
 
@@ -95,7 +95,7 @@ Reglas:
 1. Cada mazo empieza con una línea "# Nombre". Puede haber varios mazos en el mismo archivo.
 2. Cada tarjeta empieza con una línea "## " seguida de la pregunta.
 3. Las alternativas son líneas "- [x] " (correcta) o "- [ ] " (incorrecta). Usa 4 alternativas por tarjeta, todas plausibles y de largo parecido. Si hay más de una correcta, márcalas todas con [x].
-4. Para preguntas sin alternativas, usa una línea "Respuesta: …" en lugar de las alternativas.
+4. Para preguntas sin alternativas, usa una línea "Respuesta: …" en lugar de las alternativas. Hay que escribir esa respuesta para acertar, así que debe ser corta (una a tres palabras) y exacta. Si se aceptan varias formas, sepáralas con " / " (por ejemplo: Respuesta: Varsovia / Warszawa).
 5. Todo lo que vaya después de las alternativas (o de "Respuesta:") es la explicación.
 6. Se permite Markdown: **negrita**, *cursiva*, `código`, bloques ```, listas y enlaces.
 7. Imágenes: ![texto](dirección). Usa solo imágenes públicas. Lo más seguro es Wikimedia Commons con esta forma: https://commons.wikimedia.org/wiki/Special:FilePath/NOMBRE_DEL_ARCHIVO.jpg?width=400 (con el nombre exacto de un archivo que exista en Commons). Si no estás seguro de que la imagen existe, no pongas imagen. También vale el nombre de un archivo (por ejemplo ![mapa](mapa.png)) si yo voy a cargar esa imagen junto al .md.
