@@ -6,8 +6,8 @@
 // 1.0 primera versión · 1.1 calificación automática (acierto, tiempo y aciertos seguidos), sonido al acertar,
 // respuesta libre que se escribe y se comprueba · 1.2 registro de respuestas, sonido de fallo, check / cruz animados,
 // ajustes (vibración y sonido) · 1.3 botón para copiar las instrucciones de la IA en Mazos e Importar
-// 1.4 pestaña Estadísticas
-const APP_VERSION = '1.4';
+// 1.4 pestaña Estadísticas · 1.5 dentro de ZenBan se recarga sola si hay una versión publicada más nueva
+const APP_VERSION = '1.5';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -1180,8 +1180,24 @@ if ('launchQueue' in window && !IN_ZENBAN) {
   });
 }
 
+// Dentro de ZenBan no hay service worker y GitHub Pages deja index.html 10 minutos en caché: tras publicar,
+// el marco puede seguir con la versión anterior. Si la publicada es más nueva, se recarga con una dirección
+// distinta (?v=N) que no está en caché. Solo una vez por versión, así no se repite en bucle.
+function revisarVersionPublicada() {
+  const propia = (($('script[src^="app.js"]') || {}).getAttribute?.('src') || '').match(/v=(\d+)/);
+  if (!propia) return;
+  fetch('index.html', { cache: 'no-cache' }).then(r => r.ok ? r.text() : '').then(html => {
+    const publicada = (html.match(/app\.js\?v=(\d+)/) || [])[1];
+    if (!publicada || publicada === propia[1]) return;
+    if (new URLSearchParams(location.search).get('v') === publicada) return;
+    if (pluginTimer) pluginSaveNow();
+    location.replace(`index.html?v=${publicada}`);
+  }).catch(() => {});
+}
+
 if (IN_ZENBAN) {
   document.body.classList.add('in-zenban');
+  revisarVersionPublicada();
   ZenBanPlugin.onInit(({ state, theme, readOnly: ro }) => {
     readOnly = !!ro;
     $('#readonlyBar').hidden = !readOnly;
