@@ -5,8 +5,8 @@
 
 // 1.0 primera versión · 1.1 calificación automática (acierto, tiempo y aciertos seguidos), sonido al acertar,
 // respuesta libre que se escribe y se comprueba · 1.2 registro de respuestas, sonido de fallo, check / cruz animados,
-// ajustes (vibración y sonido)
-const APP_VERSION = '1.2';
+// ajustes (vibración y sonido) · 1.3 botón para copiar las instrucciones de la IA en Mazos e Importar
+const APP_VERSION = '1.3';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -176,6 +176,7 @@ function renderMazos() {
         <p>Pídele a cualquier IA un mazo con el formato de MemoSpark, guárdalo como <code>.md</code> e impórtalo. La app te irá mostrando cada tarjeta justo antes de que la olvides.</p>
         <div class="toolbar" style="justify-content:center">
           <button class="btn primary" type="button" data-go="formato">Crear con IA</button>
+          <button class="btn" type="button" data-act="copy-prompt">📋 Copiar instrucciones para la IA</button>
           <button class="btn" type="button" data-act="import">Importar .md</button>
           <button class="btn ghost" type="button" data-act="load-example">Probar el mazo de ejemplo</button>
         </div>
@@ -934,7 +935,10 @@ document.addEventListener('click', (e) => {
         toast('Registro borrado'); renderRegistro();
       });
       break;
-    case 'copy-prompt': copiar(promptActual(), 'Instrucciones copiadas: pégalas en tu IA'); break;
+    case 'copy-prompt':
+      // Desde Mazos o Importar el tema suele estar vacío: se copia con [TEMA] para completarlo en la IA
+      copiar(promptActual(), $('#fTema').value.trim() ? 'Instrucciones copiadas: pégalas en tu IA' : 'Instrucciones copiadas: pégalas en tu IA y cambia [TEMA] por tu tema');
+      break;
     case 'share-prompt': navigator.share({ title: 'Mazo para MemoSpark', text: promptActual() }).catch(() => {}); break;
     case 'download-format': descargar('FORMATO-MemoSpark.md', promptActual()); break;
     case 'export': if (m) descargar(`${slug(m.nombre)}.md`, MazoMD.serialize(m, tarjetasDe(m.id))); break;
