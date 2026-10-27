@@ -1,0 +1,8 @@
+{
+  "name": "MemoSpark",
+  "icon": "🃏",
+  "description": "Tarjetas de memoria con repetición espaciada (mazos en Markdown hechos con IA)",
+  "entry": "index.html",
+  "width": 560,
+  "height": 660
+}

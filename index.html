@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="MemoSpark: tarjetas de memoria con repetición espaciada. Crea tus mazos con cualquier IA en Markdown.">
+  <meta name="theme-color" content="#5b4bd6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MemoSpark">
+  <title>MemoSpark</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/favicon.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <button class="brand" type="button" data-go="mazos" aria-label="Ir a mis mazos">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="7" y="3" width="21" height="27" rx="4" transform="rotate(12 17 17)" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/><rect x="5" y="4" width="21" height="27" rx="4" fill="var(--accent)"/><path d="M17 9l-4.5 8h4l-1.5 8 6-10h-4.2z" fill="var(--accent-ink)"/></svg>
+      <span><h1>MemoSpark</h1><small>Tarjetas con repetición espaciada</small></span>
+    </button>
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button role="tab" data-tab="mazos" aria-selected="true">Mazos</button>
+      <button role="tab" data-tab="formato" aria-selected="false">Crear con IA</button>
+    </nav>
+    <button class="install-btn" id="installBtn" type="button" hidden title="Instalar la app en este dispositivo"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Instalar</span></button>
+    <div class="account-area" id="accountArea">
+      <button class="google-signin-btn" id="googleSignInBtn" title="Inicia sesión para sincronizar con Google Drive"><svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg><span>Iniciar sesión</span></button>
+      <button class="account-chip" id="accountChip" hidden aria-label="Cuenta y sincronización"><span class="account-avatar" id="accountAvatar"></span><span class="sync-dot" id="syncDot" data-status="off"></span></button>
+      <div class="account-menu" id="accountMenu" hidden>
+        <div class="account-menu-name" id="accountName"></div>
+        <div class="account-menu-email" id="accountEmail"></div>
+        <div class="account-menu-status" id="syncStatusText"></div>
+        <button class="account-menu-btn" id="syncNowBtn">Sincronizar ahora</button>
+        <button class="account-menu-btn danger" id="signOutBtn">Cerrar sesión</button>
+      </div>
+    </div>
+    <span class="app-version" id="appVersion"></span>
+  </div>
+</header>
+
+<div class="readonly-bar" id="readonlyBar" hidden>Solo puedes ver este tablero: lo que estudies aquí no se guarda.</div>
+
+<main class="wrap">
+  <!-- MAZOS -->
+  <section class="view" id="v-mazos">
+    <div class="head-row">
+      <div><div class="eyebrow" id="hoyEyebrow">Hoy</div><h2>Tus mazos</h2></div>
+      <div class="toolbar">
+        <button class="btn" type="button" data-act="import">Importar .md</button>
+        <button class="btn primary" type="button" data-act="study-all" id="studyAllBtn">Estudiar todo</button>
+      </div>
+    </div>
+    <div id="mazos-body"></div>
+  </section>
+
+  <!-- DETALLE DE UN MAZO -->
+  <section class="view" id="v-mazo" hidden>
+    <div id="mazo-body"></div>
+  </section>
+
+  <!-- ESTUDIO -->
+  <section class="view study" id="v-estudio" hidden>
+    <div class="study-top">
+      <button class="btn ghost" type="button" data-act="end-study" aria-label="Terminar y volver">← Volver</button>
+      <div class="study-title" id="studyTitle"></div>
+      <div class="counts" id="studyCounts"></div>
+    </div>
+    <div class="progress-line"><i id="studyBar"></i></div>
+    <div id="studyStage"></div>
+  </section>
+
+  <!-- CREAR CON IA -->
+  <section class="view" id="v-formato" hidden>
+    <div class="head-row">
+      <div><div class="eyebrow">Crear un mazo</div><h2>Pídeselo a cualquier IA</h2></div>
+    </div>
+    <div class="steps">
+      <div class="step"><b>1</b><div><h3>Completa el tema</h3><p>Escribe de qué quieres el mazo, cuántas tarjetas y el nivel.</p></div></div>
+      <div class="step"><b>2</b><div><h3>Copia y pega en la IA</h3><p>ChatGPT, Claude, Gemini… La respuesta sale en el formato de MemoSpark.</p></div></div>
+      <div class="step"><b>3</b><div><h3>Importa la respuesta</h3><p>Guárdala como archivo <code>.md</code> o pégala directo en <b>Importar</b>.</p></div></div>
+    </div>
+    <div class="grid">
+      <div class="card c5">
+        <h3>Tu pedido</h3>
+        <div class="form-stack">
+          <label class="f">Tema<input type="text" id="fTema" placeholder="Ej.: huesos del cuerpo humano" autocomplete="off"></label>
+          <div class="frow">
+            <label class="f">Tarjetas<input type="number" id="fCantidad" value="30" min="5" max="200"></label>
+            <label class="f">Nivel<input type="text" id="fNivel" placeholder="Ej.: universitario"></label>
+          </div>
+          <label class="f">Indicaciones extra (opcional)<textarea id="fExtra" placeholder="Ej.: incluye imágenes de Wikimedia, preguntas sobre fechas…"></textarea></label>
+        </div>
+        <div class="toolbar wrap-row">
+          <button class="btn primary" type="button" data-act="copy-prompt">Copiar instrucciones</button>
+          <button class="btn" type="button" data-act="share-prompt" id="sharePromptBtn" hidden>Compartir</button>
+          <button class="btn" type="button" data-act="download-format">Descargar FORMATO.md</button>
+          <button class="btn ghost" type="button" data-act="import">Importar respuesta</button>
+        </div>
+      </div>
+      <div class="card c7">
+        <div class="card-h"><h3>Instrucciones que se copian</h3><span class="chip">Formato MemoSpark</span></div>
+        <pre class="prompt" id="promptPreview"></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Importar -->
+<dialog id="dlg-import" class="wide">
+  <div class="dlg-h"><h3 class="grow">Importar un mazo</h3><button class="btn ghost sm" type="button" data-close>Cerrar</button></div>
+  <div class="dlg-b">
+    <div class="seg" role="tablist">
+      <button type="button" data-imode="file" aria-selected="true">Archivo .md</button>
+      <button type="button" data-imode="paste" aria-selected="false">Pegar texto</button>
+    </div>
+    <div id="imp-file">
+      <label class="drop" id="dropZone">
+        <input type="file" id="impFiles" accept=".md,.markdown,.txt,text/markdown,text/plain,image/*" multiple>
+        <strong>Elige el archivo .md</strong>
+        <span>o arrástralo aquí. Si usa imágenes propias (<code>![x](foto.png)</code>), elígelas junto con el .md.</span>
+      </label>
+    </div>
+    <div id="imp-paste" hidden>
+      <textarea id="impText" class="mono" placeholder="# Nombre del mazo&#10;&#10;## ¿Pregunta?&#10;- [x] Correcta&#10;- [ ] Incorrecta"></textarea>
+    </div>
+    <div id="impPreview" class="imp-preview"></div>
+  </div>
+  <div class="dlg-f">
+    <button class="btn ghost" type="button" data-act="load-example">Usar mazo de ejemplo</button>
+    <span class="grow"></span>
+    <button class="btn primary" type="button" id="impConfirm" disabled>Importar</button>
+  </div>
+</dialog>
+
+<!-- Ayuda para instalar -->
+<dialog id="dlg-install">
+  <div class="dlg-h"><h3 class="grow">Instalar MemoSpark</h3><button class="btn ghost sm" type="button" data-close>Cerrar</button></div>
+  <div class="dlg-b" id="install-help"></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="zenban-plugin-sdk.js?v=1"></script>
+<script src="config.js?v=1"></script>
+<script src="formato.js?v=1"></script>
+<script src="mazo-md.js?v=1"></script>
+<script src="srs.js?v=1"></script>
+<script src="sync.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
