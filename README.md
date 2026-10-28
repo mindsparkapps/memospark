@@ -26,6 +26,10 @@ Mismos valores por defecto que Anki:
 - **Fallo**: la tarjeta vuelve a aprendizaje (10 minutos), baja la facilidad y su intervalo vuelve a 1 día.
 - El día de estudio cambia a las 4 de la mañana. Los intervalos largos llevan un poco de azar para no amontonar repasos.
 
+### Dejar la sesión a medias
+
+No hace falta terminar la sesión: cada respuesta se guarda al instante. Con **← Guardar y salir** (o al cerrar la app o pasarla a segundo plano) también se guarda la tarjeta que estaba respondida en pantalla y la sesión queda pendiente. Al volver aparece «Tienes una sesión a medias» con **Continuar ▶** (y el botón del mazo dice «Continuar»): sigue desde la misma tarjeta, con los contadores y la barra de avance donde quedaron. La sesión pendiente vale para el día de estudio en que se empezó y se guarda en cada dispositivo (dentro de ZenBan, en el objeto del lienzo).
+
 ### Calificación automática
 
 No se pregunta Difícil / Bien / Fácil: la app lo calcula con el acierto, el tiempo de respuesta y los aciertos seguidos de la tarjeta.

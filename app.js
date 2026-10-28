@@ -9,7 +9,8 @@
 // 1.4 pestaña Estadísticas · 1.5 dentro de ZenBan se recarga sola si hay una versión publicada más nueva
 // 1.6 tipos de respuesta por mazo (Modos: / ||) elegidos antes de estudiar
 // 1.7 la tarjeta se ajusta al ancho del celular (también como plugin de ZenBan), en vertical y en horizontal
-const APP_VERSION = '1.7';
+// 1.8 guardar y salir a mitad de la sesión y seguir después desde la misma tarjeta
+const APP_VERSION = '1.8';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -82,7 +83,41 @@ let pluginTimer = null;
 function pluginSnapshot() {
   const out = { v: 1 };
   STORES.forEach(s => { out[s] = [...S[s].values()]; });
+  if (sesionGuardada) out.sesion = sesionGuardada;
   return out;
+}
+
+/* ---------- Sesión a medias: se puede salir y seguir después desde la misma tarjeta ---------- */
+// { target, hechas, aciertos, inicial, contador, actualId, dia, ts }. Se guarda en este dispositivo
+// (dentro de ZenBan, en el objeto del lienzo) y vale solo para el día de estudio en que se empezó.
+const SESION_KEY = 'memospark_sesion';
+let sesionGuardada = null;
+try { sesionGuardada = JSON.parse(localStorage.getItem(SESION_KEY) || 'null'); } catch (e) {}
+
+function sesionPendiente() {
+  const s = sesionGuardada;
+  if (!s || s.dia !== SRS.dayKey() || (s.target !== '*' && !S.mazos.has(s.target))) return null;
+  return s;
+}
+function escribirSesion() {
+  if (IN_ZENBAN) { clearTimeout(pluginTimer); pluginTimer = setTimeout(pluginSaveNow, 0); return; }
+  try {
+    if (sesionGuardada) localStorage.setItem(SESION_KEY, JSON.stringify(sesionGuardada));
+    else localStorage.removeItem(SESION_KEY);
+  } catch (e) {}
+}
+function guardarSesion() {
+  if (!study || readOnly) return;
+  sesionGuardada = {
+    target: study.target, hechas: study.hechas, aciertos: study.aciertos, inicial: study.inicial,
+    contador: study.contador, actualId: study.actual && !study.actual.guardada ? study.actual.t.id : null, dia: SRS.dayKey(), ts: Date.now()
+  };
+  escribirSesion();
+}
+function borrarSesion() {
+  if (!sesionGuardada) return;
+  sesionGuardada = null;
+  escribirSesion();
 }
 function pluginSaveNow() {
   clearTimeout(pluginTimer);
@@ -169,6 +204,9 @@ function renderMazos() {
   const total = hoyDias.reduce((n, d) => n + d.total, 0);
   const aciertos = hoyDias.reduce((n, d) => n + d.aciertos, 0);
   const pend = totalPendientes();
+  // Sesión a medias (solo si aún queda algo por estudiar en ella)
+  let sesion = sesionPendiente();
+  if (sesion) { const c = SRS.conteos(candidatos(sesion.target), Infinity); if (!c.nuevas && !c.aprend && !c.repaso) sesion = null; }
   $('#studyAllBtn').hidden = mazos.length < 2;
   $('#studyAllBtn').disabled = !pend;
   $('#hoyEyebrow').textContent = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -217,12 +255,17 @@ function renderMazos() {
         <div class="deck-foot">
           <button class="btn ghost sm" type="button" data-open="${esc(m.id)}">Ver mazo</button>
           <span class="grow"></span>
-          <button class="btn ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${hay ? '' : 'disabled'}>${hay ? 'Estudiar' : 'Al día ✓'}</button>
+          <button class="btn ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${hay ? '' : 'disabled'}>${hay ? (sesion && sesion.target === m.id ? 'Continuar ▶' : 'Estudiar') : 'Al día ✓'}</button>
         </div>
       </article>`;
   }).join('');
 
   $('#mazos-body').innerHTML = `
+    ${sesion ? `<div class="resume">
+      <div class="grow"><b>Tienes una sesión a medias</b><span>${esc(sesion.target === '*' ? 'Todos los mazos' : S.mazos.get(sesion.target).nombre)} · ${sesion.hechas} ${sesion.hechas === 1 ? 'respondida' : 'respondidas'}${sesion.hechas ? ` · ${Math.round(sesion.aciertos / sesion.hechas * 100)}% de aciertos` : ''}</span></div>
+      <button class="btn ghost sm" type="button" data-act="discard-session">Descartar</button>
+      <button class="btn primary" type="button" data-act="resume">Continuar ▶</button>
+    </div>` : ''}
     <div class="today">
       <div class="stat"><div class="v">${pend}</div><div class="l">Por estudiar hoy</div></div>
       <div class="stat"><div class="v">${total}</div><div class="l">Respondidas hoy</div></div>
@@ -424,7 +467,7 @@ function renderMazo() {
         <h2>${esc(m.nombre)}</h2>
         ${m.descripcion ? `<div class="md muted" style="margin-top:6px">${MazoMD.render(m.descripcion)}</div>` : ''}
       </div>
-      <button class="btn primary" type="button" data-study="${esc(m.id)}" ${hay ? '' : 'disabled'}>${hay ? `Estudiar (${hay})` : 'Al día ✓'}</button>
+      <button class="btn primary" type="button" data-study="${esc(m.id)}" ${hay ? '' : 'disabled'}>${hay ? `${(sesionPendiente() || {}).target === m.id ? 'Continuar ▶' : 'Estudiar'} (${hay})` : 'Al día ✓'}</button>
     </div>
     <div class="today">
       <div class="stat"><div class="v" style="color:var(--new)">${c.nuevasTotal}</div><div class="l">Sin ver</div></div>
@@ -685,13 +728,28 @@ const modoDe = (mazoId) => { const m = S.mazos.get(mazoId); return modosDe(m).le
 function startStudy(target, { elegido = false } = {}) {
   const lista = candidatos(target);
   const c = SRS.conteos(lista, Infinity);
-  if (!c.nuevas && !c.aprend && !c.repaso) { toast('No hay tarjetas para estudiar ahora'); return; }
+  if (!c.nuevas && !c.aprend && !c.repaso) { borrarSesion(); toast('No hay tarjetas para estudiar ahora'); return; }
+  // Si hay una sesión a medias de este mismo mazo, se retoma (con su tipo de respuesta ya elegido)
+  const previa = sesionPendiente();
+  const reanudar = previa && previa.target === target ? previa : null;
   const m = target !== '*' && S.mazos.get(target);
-  if (m && modosDe(m).length && !elegido) { elegirModo(m); return; }
+  if (m && modosDe(m).length && !elegido && !reanudar) { elegirModo(m); return; }
+  if (!reanudar) borrarSesion();
   study = { target, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, inicial: c.nuevas + c.aprend + c.repaso, actual: null, espera: null };
+  if (reanudar) Object.assign(study, { hechas: reanudar.hechas, aciertos: reanudar.aciertos, contador: reanudar.contador, inicial: Math.max(reanudar.inicial, reanudar.hechas + c.nuevas + c.aprend + c.repaso) });
   $('#studyTitle').textContent = target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || '';
   go('estudio');
-  nextCard();
+  // Primero la misma tarjeta que estaba en pantalla al salir, si todavía toca
+  const pend = reanudar && reanudar.actualId && lista.find(p => p.id === reanudar.actualId);
+  const t = pend && S.tarjetas.get(pend.id);
+  if (t) mostrarTarjeta(t, pend.estado === 'nuevo' ? 'nuevo' : pend.estado === 'repaso' ? 'repaso' : 'aprendiendo');
+  else nextCard();
+  if (reanudar) toast(`Sesión retomada: ${reanudar.hechas} ${reanudar.hechas === 1 ? 'respondida' : 'respondidas'} hasta ahora`);
+}
+
+// Salir del estudio (endStudy guarda lo respondido y deja la sesión lista para seguir después)
+function salirDelEstudio() {
+  if (study && study.target !== '*') go('mazo', { mazo: study.target }); else go('mazos');
 }
 
 function elegirModo(m) {
@@ -711,6 +769,10 @@ function elegirModo(m) {
 function endStudy() {
   if (!study) return;
   clearTimeout(study.espera);
+  const a = study.actual;
+  // guardarRespuesta actualiza los contadores antes de su primer await, así que la sesión ya los incluye
+  if (a && a.resultado && !a.guardada) guardarRespuesta(a);
+  if (!study.terminada) guardarSesion();
   study = null;
 }
 
@@ -752,6 +814,7 @@ function mostrarTarjeta(t, tipo) {
   };
   renderCounts(tipo);
   renderCard();
+  guardarSesion();
 }
 
 // Tiempo de respuesta sin contar el rato en que la app estuvo en segundo plano
@@ -957,14 +1020,24 @@ function renderBack() {
 }
 const NOTA_TXT = { 1: 'Otra vez', 2: 'Difícil', 3: 'Bien', 4: 'Fácil' };
 
-async function continuar() {
+// seguir = false: guarda la respuesta y la sesión sin pasar a la siguiente tarjeta (al salir del estudio)
+async function continuar(seguir = true) {
   const a = study && study.actual;
   if (!a || !a.resultado) return;
+  if (!a.guardada) await guardarRespuesta(a);
+  study.actual = null;
+  guardarSesion();
+  if (seguir) nextCard();
+}
+
+// Guarda una respuesta ya dada (progreso, conteo del día y registro). Se llama una sola vez por tarjeta:
+// al continuar, al salir o si la app pasa a segundo plano con la tarjeta ya respondida.
+async function guardarRespuesta(a) {
+  a.guardada = true;
   const nota = a.nota;
   const antes = a.p;
   const despues = SRS.responder(antes, nota);
   const acierto = nota > 1;
-  study.actual = null;
   study.hechas++;
   if (acierto) study.aciertos++;
   study.contador++;
@@ -976,8 +1049,17 @@ async function continuar() {
   await save('progreso', [prog]);
   await save('dias', [d2]);
   await registrar(a, antes, despues);
-  nextCard();
 }
+
+// Si la app se cierra o pasa a segundo plano a mitad de la sesión, lo respondido y la tarjeta actual quedan guardados
+function guardarAlOcultar() {
+  if (!study || vista !== 'estudio' || study.terminada) return;
+  const a = study.actual;
+  if (a && a.resultado && !a.guardada) guardarRespuesta(a);
+  guardarSesion();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') guardarAlOcultar(); });
+window.addEventListener('pagehide', guardarAlOcultar);
 
 /* ---------- Registro de respuestas (para ir ajustando la calificación automática) ---------- */
 // Una fila por respuesta con lo que usó la calificación (tiempo, tiempo esperado, aciertos seguidos)
@@ -1046,8 +1128,11 @@ function renderFin(espera) {
     const min = Math.max(1, Math.ceil(espera / SRS.MIN));
     $('#studyStage').innerHTML = `<div class="card done"><div class="big">⏳</div><h3>Pausa breve</h3><p class="muted">Quedan tarjetas en aprendizaje. Vuelven en ${min} min; la sesión sigue sola.</p>${study.hechas ? `<p>${study.hechas} respondidas · ${pct}% de aciertos</p>` : ''}<div class="toolbar"><button class="btn" type="button" data-act="end-study">Terminar por ahora</button><button class="btn primary" type="button" data-act="study-ahead">Estudiar ya</button></div></div>`;
     study.espera = setTimeout(nextCard, Math.min(espera + 500, 2147483000));
+    guardarSesion();
     return;
   }
+  study.terminada = true;
+  borrarSesion();
   $('#studyStage').innerHTML = `<div class="card done"><div class="big">🎉</div><h3>¡Listo por hoy!</h3><p class="muted">${study.hechas ? `${study.hechas} tarjetas respondidas · ${pct}% de aciertos.` : 'No quedan tarjetas pendientes.'} Las próximas aparecerán justo cuando estés por olvidarlas.</p><button class="btn primary" type="button" data-act="end-study">Volver a mis mazos</button></div>`;
   $('#studyBar').style.width = '100%';
 }
@@ -1122,9 +1207,9 @@ document.addEventListener('click', (e) => {
     case 'import': abrirImportar(); break;
     case 'load-example': cargarEjemplo(); break;
     case 'study-all': startStudy('*'); break;
-    case 'end-study':
-      if (study && study.target !== '*') go('mazo', { mazo: study.target }); else go('mazos');
-      break;
+    case 'end-study': salirDelEstudio(); break;
+    case 'resume': { const s = sesionPendiente(); if (s) startStudy(s.target, { elegido: true }); break; }
+    case 'discard-session': borrarSesion(); toast('Sesión descartada: lo respondido ya quedó guardado'); render(); break;
     case 'study-ahead': estudiarAdelantado(); break;
     case 'check': evaluar(); break;
     case 'dont-know': evaluar(true); break;
@@ -1239,6 +1324,7 @@ if (IN_ZENBAN) {
     if (theme) document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
     // Si estoy en medio de una tarjeta, solo se actualizan los datos (no se interrumpe)
     STORES.forEach(s => { S[s] = new Map(((state && state[s]) || []).map(r => [r.id, r])); });
+    if (vista !== 'estudio') sesionGuardada = (state && state.sesion) || null;
     pluginReady = true;
     if (vista !== 'estudio') render();
   });

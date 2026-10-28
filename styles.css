@@ -110,6 +110,12 @@ textarea.mono{font-family:var(--f-mono);font-size:.85rem;min-height:220px}
 .meter{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;display:flex}
 .meter i{display:block;height:100%}
 
+/* Aviso de sesión a medias */
+.resume{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--r);padding:12px 14px}
+.resume .grow{flex:1 1 220px;min-width:0}
+.resume b{display:block}
+.resume span{font-size:.85rem;color:var(--muted)}
+
 /* Estado vacío */
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:32px 20px;text-align:center;display:grid;gap:14px;justify-items:center}
 .empty h3{font-size:1.4rem}
