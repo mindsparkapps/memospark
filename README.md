@@ -13,6 +13,10 @@ App publicada: https://mindsparkapps.github.io/memospark/
 
 El formato completo está en [FORMATO.md](FORMATO.md).
 
+Un mazo puede traer varios **tipos de respuesta** (por ejemplo «Solo el nombre» y «Nombre y para qué sirve»): al tocar **Estudiar** la app pregunta cuál usar y lo recuerda; también se cambia en el detalle del mazo.
+
+Mazos incluidos en `ejemplos/`: capitales de Europa y **AWS Solutions Architect – Servicios clave** (95 tarjetas con los íconos oficiales y dos tipos de respuesta).
+
 ## Repetición espaciada
 
 Mismos valores por defecto que Anki:

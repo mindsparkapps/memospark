@@ -49,6 +49,30 @@ Hay un mazo completo en [ejemplos/capitales-de-europa.md](ejemplos/capitales-de-
 
 También se puede usar **negrita**, *cursiva*, `código`, bloques de código y enlaces.
 
+## Tipos de respuesta (modos)
+
+Un mazo puede ofrecer varias formas de mostrar las respuestas, para elegir antes de estudiar. Bajo el título se agrega una línea `Modos:` con los nombres separados por `|`, y cada alternativa trae una versión por modo separada por `||`:
+
+```markdown
+# Servicios de AWS
+
+Modos: Solo el nombre | Nombre y para qué sirve
+
+## ¿Qué servicio de AWS es este?
+
+![ícono](https://icon.icepanel.io/AWS/svg/Compute/EC2.svg)
+
+- [x] Amazon EC2 || **Amazon EC2** — servidores virtuales
+- [ ] AWS Lambda || **AWS Lambda** — funciones sin servidores
+```
+
+- Al tocar **Estudiar** la app pregunta qué tipo usar y lo recuerda para la próxima vez (también se cambia en el detalle del mazo). El progreso de cada tarjeta es el mismo en todos los modos.
+- Si una alternativa no trae `||`, se muestra igual en todos los modos.
+- En `Respuesta: corta || larga`, lo que escribes se compara siempre con la versión corta.
+- Si varias tarjetas tienen la misma pregunta y solo cambia la imagen (como «¿Qué servicio es este?»), cada una se distingue por su imagen.
+
+Hay un mazo completo con modos en [ejemplos/aws-arquitecto.md](ejemplos/aws-arquitecto.md).
+
 ## Volver a importar
 
 Cada tarjeta se identifica por el nombre del mazo y el texto de su pregunta (sin contar las imágenes). Si corriges o amplías un mazo y lo importas de nuevo:
@@ -101,6 +125,7 @@ Reglas:
 7. Imágenes: ![texto](dirección). Usa solo imágenes públicas. Lo más seguro es Wikimedia Commons con esta forma: https://commons.wikimedia.org/wiki/Special:FilePath/NOMBRE_DEL_ARCHIVO.jpg?width=400 (con el nombre exacto de un archivo que exista en Commons). Si no estás seguro de que la imagen existe, no pongas imagen. También vale el nombre de un archivo (por ejemplo ![mapa](mapa.png)) si yo voy a cargar esa imagen junto al .md.
 8. Una idea por tarjeta, preguntas claras y sin ambigüedad; no repitas preguntas.
 9. No escribas nada fuera del formato (ni saludos ni comentarios).
+10. Opcional, solo si lo pido: varios tipos de respuesta para elegir antes de estudiar. Bajo el título del mazo agrega una línea "Modos: Nombre del tipo 1 | Nombre del tipo 2" y escribe cada alternativa (y cada "Respuesta:") con una versión por tipo separadas por " || ", en el mismo orden. Ejemplo: "- [x] Amazon S3 || **Amazon S3** — almacenamiento de objetos".
 ```
 
 Si cambias el formato, actualiza también `formato.js` (es el mismo texto que copia la app).

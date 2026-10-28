@@ -36,4 +36,5 @@ Reglas:
 6. Se permite Markdown: **negrita**, *cursiva*, \`código\`, bloques \`\`\`, listas y enlaces.
 7. Imágenes: ![texto](dirección). Usa solo imágenes públicas. Lo más seguro es Wikimedia Commons con esta forma: https://commons.wikimedia.org/wiki/Special:FilePath/NOMBRE_DEL_ARCHIVO.jpg?width=400 (con el nombre exacto de un archivo que exista en Commons). Si no estás seguro de que la imagen existe, no pongas imagen. También vale el nombre de un archivo (por ejemplo ![mapa](mapa.png)) si yo voy a cargar esa imagen junto al .md.
 8. Una idea por tarjeta, preguntas claras y sin ambigüedad; no repitas preguntas.
-9. No escribas nada fuera del formato (ni saludos ni comentarios).`;
+9. No escribas nada fuera del formato (ni saludos ni comentarios).
+10. Opcional, solo si lo pido: varios tipos de respuesta para elegir antes de estudiar. Bajo el título del mazo agrega una línea "Modos: Nombre del tipo 1 | Nombre del tipo 2" y escribe cada alternativa (y cada "Respuesta:") con una versión por tipo separadas por " || ", en el mismo orden. Ejemplo: "- [x] Amazon S3 || **Amazon S3** — almacenamiento de objetos".`;

@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 <header class="top">
@@ -151,6 +151,16 @@
   </div>
 </dialog>
 
+<!-- Elegir el tipo de respuesta antes de estudiar -->
+<dialog id="dlg-modo">
+  <div class="dlg-h"><h3 class="grow">¿Cómo quieres las respuestas?</h3><button class="btn ghost sm" type="button" data-close>Cancelar</button></div>
+  <div class="dlg-b">
+    <p class="muted" style="font-size:.88rem">Mazo «<span id="modoMazo"></span>». Puedes cambiarlo cada vez que empiezas; el progreso de las tarjetas es el mismo.</p>
+    <div class="modo-ops" id="modoOpciones"></div>
+  </div>
+  <div class="dlg-f"><span class="grow"></span><button class="btn primary" type="button" id="modoEmpezar">Empezar</button></div>
+</dialog>
+
 <!-- Ajustes -->
 <dialog id="dlg-settings" class="wide">
   <div class="dlg-h"><h3 class="grow">Ajustes</h3><button class="btn ghost sm" type="button" data-close>Cerrar</button></div>
@@ -186,12 +196,12 @@
 <div class="bar-tip" id="barTip" role="tooltip" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="zenban-plugin-sdk.js?v=6"></script>
-<script src="config.js?v=6"></script>
-<script src="formato.js?v=6"></script>
-<script src="mazo-md.js?v=6"></script>
-<script src="srs.js?v=6"></script>
-<script src="sync.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="zenban-plugin-sdk.js?v=7"></script>
+<script src="config.js?v=7"></script>
+<script src="formato.js?v=7"></script>
+<script src="mazo-md.js?v=7"></script>
+<script src="srs.js?v=7"></script>
+<script src="sync.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

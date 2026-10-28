@@ -167,6 +167,8 @@ pre.prompt{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(-
 .qtext p+p,.qtext p+ul,.qtext ul+p{margin-top:10px}
 .qtext p:first-child{font-family:var(--f-display);font-weight:700;font-size:1.4rem;line-height:1.25}
 .qtext img,.md img{display:block;max-height:280px;margin:10px auto;border-radius:10px;object-fit:contain}
+.qtext img[src*=".svg"]{width:min(128px,40%);height:auto}
+.explain img[src*=".svg"]{width:56px;height:auto;margin:0 0 8px}
 .md pre,.qtext pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:.85rem}
 .md pre code,.qtext pre code{background:none;padding:0}
 .md blockquote,.qtext blockquote{margin:6px 0;padding-left:12px;border-left:3px solid var(--line);color:var(--muted)}
@@ -271,6 +273,13 @@ dialog[open]{display:flex;flex-direction:column}
 .bar-tip{position:fixed;z-index:60;background:var(--ink);color:var(--bg);font-size:.8rem;font-weight:600;padding:6px 10px;border-radius:8px;pointer-events:none;max-width:240px;box-shadow:var(--shadow)}
 button.link{background:none;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-align:left}
 button.link:hover{text-decoration:underline}
+
+/* Elegir tipo de respuesta */
+.modo-ops{display:grid;gap:8px}
+.modo-op{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;min-height:52px}
+.modo-op:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.modo-op input{accent-color:var(--accent);width:18px;height:18px;flex:none}
+.modo-op small{display:block;color:var(--muted);font-size:.78rem}
 
 /* Ajustes */
 .icon-btn{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer;flex:none}

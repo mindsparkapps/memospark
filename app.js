@@ -7,7 +7,8 @@
 // respuesta libre que se escribe y se comprueba · 1.2 registro de respuestas, sonido de fallo, check / cruz animados,
 // ajustes (vibración y sonido) · 1.3 botón para copiar las instrucciones de la IA en Mazos e Importar
 // 1.4 pestaña Estadísticas · 1.5 dentro de ZenBan se recarga sola si hay una versión publicada más nueva
-const APP_VERSION = '1.5';
+// 1.6 tipos de respuesta por mazo (Modos: / ||) elegidos antes de estudiar
+const APP_VERSION = '1.6';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -432,7 +433,8 @@ function renderMazo() {
     <div class="card">
       <div class="frow" style="align-items:end">
         <label class="f">Tarjetas nuevas por día<input type="number" id="nuevasPorDia" min="0" max="500" value="${m.nuevasPorDia ?? 20}" ${readOnly ? 'disabled' : ''}></label>
-        <div class="toolbar" style="grid-column:span 3;justify-content:flex-end">
+        ${modosDe(m).length ? `<label class="f">Tipo de respuesta<select id="modoSelect">${m.modos.map((x, i) => `<option value="${i}" ${i === modoDe(m.id) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}
+        <div class="toolbar" style="grid-column:span ${modosDe(m).length ? 2 : 3};justify-content:flex-end">
           <button class="btn" type="button" data-act="export" title="Descargar el mazo en el formato .md">Exportar .md</button>
           <button class="btn" type="button" data-act="copy-md" title="Copiar el mazo para pedirle a una IA que lo amplíe o corrija">Copiar para la IA</button>
           <button class="btn" type="button" data-act="reset" ${readOnly ? 'disabled' : ''}>Reiniciar progreso</button>
@@ -448,8 +450,13 @@ function renderMazo() {
   const inp = $('#nuevasPorDia');
   inp.addEventListener('change', () => {
     const v = Math.max(0, Math.min(500, parseInt(inp.value, 10) || 0));
-    save('mazos', [{ ...m, nuevasPorDia: v }]);
+    save('mazos', [{ ...S.mazos.get(m.id), nuevasPorDia: v }]);
     toast(`Nuevas por día: ${v}`);
+  });
+  const sel = $('#modoSelect');
+  if (sel) sel.addEventListener('change', () => {
+    save('mazos', [{ ...S.mazos.get(m.id), modo: +sel.value }]);
+    toast(`Respuestas: ${m.modos[+sel.value]}`);
   });
 }
 
@@ -592,6 +599,7 @@ function analizar(texto) {
     }
     const libres = m.tarjetas.filter(t => !t.opciones.length).length;
     if (libres) detalle += ` · ${libres} de respuesta libre`;
+    if (m.modos && m.modos.length > 1) detalle += ` · tipos de respuesta: ${m.modos.join(' / ')}`;
     return `<div class="imp-deck"><b>${esc(m.nombre)}</b><span class="muted" style="font-size:.85rem">${esc(detalle)}</span></div>`;
   }).join('');
   const avisos = [...res.avisos];
@@ -608,7 +616,9 @@ async function confirmarImportar() {
     const existente = S.mazos.get(m.id);
     await save('mazos', [{
       ...(existente || { creado: now, nuevasPorDia: 20 }),
-      id: m.id, nombre: m.nombre, descripcion: reemplazarImagenes(m.descripcion)
+      id: m.id, nombre: m.nombre, descripcion: reemplazarImagenes(m.descripcion),
+      modos: m.modos && m.modos.length > 1 ? m.modos : [],
+      modo: existente && m.modos && (existente.modo || 0) < m.modos.length ? existente.modo || 0 : 0
     }]);
     const viejas = tarjetasDe(m.id);
     const nuevasIds = new Set(m.tarjetas.map(t => t.id));
@@ -666,14 +676,34 @@ function candidatos(target) {
   return out;
 }
 
-function startStudy(target) {
+const modosDe = (m) => (m && Array.isArray(m.modos) && m.modos.length > 1 ? m.modos : []);
+const modoDe = (mazoId) => { const m = S.mazos.get(mazoId); return modosDe(m).length ? Math.min(m.modo || 0, m.modos.length - 1) : 0; };
+
+// Antes de estudiar un mazo con varios tipos de respuesta se elige cuál usar (queda recordado en el mazo)
+function startStudy(target, { elegido = false } = {}) {
   const lista = candidatos(target);
   const c = SRS.conteos(lista, Infinity);
   if (!c.nuevas && !c.aprend && !c.repaso) { toast('No hay tarjetas para estudiar ahora'); return; }
+  const m = target !== '*' && S.mazos.get(target);
+  if (m && modosDe(m).length && !elegido) { elegirModo(m); return; }
   study = { target, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, inicial: c.nuevas + c.aprend + c.repaso, actual: null, espera: null };
   $('#studyTitle').textContent = target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || '';
   go('estudio');
   nextCard();
+}
+
+function elegirModo(m) {
+  const actual = modoDe(m.id);
+  $('#modoMazo').textContent = m.nombre;
+  $('#modoOpciones').innerHTML = m.modos.map((txt, i) => `
+    <label class="modo-op"><input type="radio" name="modoResp" value="${i}" ${i === actual ? 'checked' : ''}><span><b>${esc(txt)}</b>${i === actual ? '<small>La última vez</small>' : ''}</span></label>`).join('');
+  $('#modoEmpezar').onclick = async () => {
+    const sel = +(($('input[name="modoResp"]:checked') || {}).value || 0);
+    $('#dlg-modo').close();
+    if (sel !== (m.modo || 0)) await save('mazos', [{ ...m, modo: sel }]);
+    startStudy(m.id, { elegido: true });
+  };
+  $('#dlg-modo').showModal();
 }
 
 function endStudy() {
@@ -708,10 +738,12 @@ function nextCard() {
 }
 
 function mostrarTarjeta(t, tipo) {
-  const opciones = t.opciones && t.opciones.length ? shuffle(t.opciones) : [];
+  // version: tipo de respuesta elegido para el mazo (cada alternativa trae «corta || larga»)
+  const version = modoDe(t.mazoId);
+  const opciones = t.opciones && t.opciones.length ? shuffle(t.opciones.map(o => ({ t: MazoMD.variante(o.t, version), ok: o.ok }))) : [];
   const correctas = opciones.filter(o => o.ok).length;
   study.actual = {
-    t, p: S.progreso.get(t.id) || SRS.nuevo(t.id, t.mazoId), tipo, opciones,
+    t, p: S.progreso.get(t.id) || SRS.nuevo(t.id, t.mazoId), tipo, opciones, version,
     modo: !opciones.length ? 'libre' : correctas > 1 ? 'multiple' : 'unica',
     elegidas: new Set(), resultado: null,
     inicio: performance.now(), oculto: 0, ocultoDesde: null
@@ -869,7 +901,8 @@ function evaluar(noLaSe = false) {
   if (a.modo === 'libre') {
     a.escrita = noLaSe ? '' : (($('#libreInput') || {}).value || '').trim();
     if (!a.escrita && !noLaSe) return;
-    ok = respuestaCorrecta(a.escrita, a.t.respuesta);
+    // Lo escrito se compara con la versión corta (escribir la explicación completa no tendría sentido)
+    ok = respuestaCorrecta(a.escrita, MazoMD.variante(a.t.respuesta, 0));
   } else {
     ok = a.opciones.every((o, i) => o.ok === a.elegidas.has(i));
   }
@@ -877,7 +910,7 @@ function evaluar(noLaSe = false) {
   // Calificación automática: acierto, tiempo de respuesta y aciertos seguidos de la tarjeta
   const palabras = contarPalabras(a.t.pregunta) + a.opciones.reduce((n, o) => n + contarPalabras(o.t), 0);
   a.palabras = palabras;
-  a.esperadoMs = SRS.tiempoEsperado(palabras, a.modo === 'libre' ? contarPalabras(a.t.respuesta.split(/\s+\/\s+/)[0]) : 0);
+  a.esperadoMs = SRS.tiempoEsperado(palabras, a.modo === 'libre' ? contarPalabras(MazoMD.variante(a.t.respuesta, 0).split(/\s+\/\s+/)[0]) : 0);
   const auto = SRS.notaAutomatica({ correcta: ok, ms: a.ms, esperadoMs: a.esperadoMs, racha: a.p.racha || 0 });
   a.nota = auto.nota;
   a.ritmo = auto.ritmo;
@@ -895,7 +928,7 @@ function renderBack() {
   verdict = a.resultado === 'ok' ? `<div class="verdict ok">${ICON_OK}<span>¡Correcto!</span></div>` : `<div class="verdict bad">${ICON_BAD}<span>${a.modo === 'libre' && !a.escrita ? 'Para la próxima' : 'Incorrecto'}</span></div>`;
   if (a.modo === 'libre') {
     cuerpo = `${a.escrita ? `<div class="answer-box"><div class="l">Tu respuesta</div>${esc(a.escrita)}</div>` : ''}
-      <div class="answer-box"><div class="l">Respuesta</div><div class="md" style="font-size:1.15rem;font-weight:600">${MazoMD.render(t.respuesta)}</div></div>`;
+      <div class="answer-box"><div class="l">Respuesta</div><div class="md" style="font-size:1.15rem;font-weight:600">${MazoMD.render(MazoMD.variante(t.respuesta, a.version))}</div></div>`;
   } else {
     cuerpo = `<div class="opts">${a.opciones.map((o, i) => {
       const elegida = a.elegidas.has(i);
@@ -953,7 +986,7 @@ async function registrar(a, antes, despues) {
   const now = Date.now();
   const fila = {
     id: `r${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-    ts: now, tarjetaId: antes.id, mazoId: antes.mazoId, modo: a.modo,
+    ts: now, tarjetaId: antes.id, mazoId: antes.mazoId, modo: a.modo, version: a.version || 0,
     correcta: a.resultado === 'ok', ms: Math.round(a.ms), esperadoMs: Math.round(a.esperadoMs), palabras: a.palabras,
     relacion: Math.round(a.ms / Math.max(1000, a.esperadoMs) * 100) / 100,
     ritmo: a.ritmo, nota: a.nota, rachaAntes: antes.racha || 0,

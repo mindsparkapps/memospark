@@ -6,11 +6,20 @@
 //   - [x] correcta / - [ ] falsa  -> alternativas (una o varias correctas)
 //   Respuesta: texto              -> en vez de alternativas: tarjeta de respuesta libre
 //   texto después de las alternativas -> explicación que se ve al dar vuelta la tarjeta
+//   Modos: Corto | Largo          -> (bajo el título del mazo) tipos de respuesta a elegir antes de estudiar;
+//                                    cada alternativa trae una versión por modo: - [x] corta || larga
 
 const MazoMD = (() => {
   const OPTION_RE = /^\s*[-*+]\s+\[( |x|X)\]\s+(.*)$/;
   const ANSWER_RE = /^\s*\*{0,2}Respuesta\*{0,2}\s*:\s*\*{0,2}\s*(.*)$/i;
   const EXPLAIN_RE = /^\s*\*{0,2}Explicaci[oó]n\*{0,2}\s*:\s*\*{0,2}\s*/i;
+  const MODOS_RE = /^\s*\*{0,2}Modos?(?: de respuesta)?\*{0,2}\s*:\s*\*{0,2}\s*(.+)$/i;
+
+  // Versión de un texto para el modo de respuesta elegido («corta || larga»); sin modos, la primera
+  function variante(texto, modo = 0) {
+    const partes = String(texto ?? '').split(/\s*\|\|\s*/);
+    return partes[Math.min(Math.max(0, modo | 0), partes.length - 1)];
+  }
 
   // Identificador estable a partir de un texto: al volver a importar el mismo mazo se conserva el progreso
   function hash(str) {
@@ -64,6 +73,8 @@ const MazoMD = (() => {
       if (c.opciones.length === 1) avisos.push(`Línea ${c.linea}: «${c.titulo.slice(0, 60)}» tiene una sola alternativa.`);
       // El id no depende de las imágenes: cambiar la dirección de una imagen no borra el progreso
       let id = 't' + hash(mazo.id + '|' + norm(pregunta.replace(/!\[[^\]]*\]\([^)]*\)/g, '')));
+      // Preguntas con el mismo texto que solo cambian la imagen («¿Qué servicio es este?»): ahí sí cuenta la imagen
+      if (mazo.tarjetas.some(t => t.id === id)) id = 't' + hash(mazo.id + '|' + norm(pregunta));
       while (mazo.tarjetas.some(t => t.id === id)) id += 'x';
       mazo.tarjetas.push({
         id, pregunta, explicacion,
@@ -103,6 +114,11 @@ const MazoMD = (() => {
         }
       }
       if (!card) {
+        const modos = !inCode && mazo && line.match(MODOS_RE);
+        if (modos) {
+          mazo.modos = modos[1].split('|').map(s => s.trim()).filter(Boolean);
+          return;
+        }
         if (mazo) mazo.desc.push(line);
         else if (line.trim()) ensureMazo(n);
         return;
@@ -137,6 +153,7 @@ const MazoMD = (() => {
   function serialize(mazo, tarjetas) {
     const out = [`# ${mazo.nombre}`, ''];
     if (mazo.descripcion) out.push(mazo.descripcion, '');
+    if (mazo.modos && mazo.modos.length > 1) out.push(`Modos: ${mazo.modos.join(' | ')}`, '');
     tarjetas.forEach(t => {
       const [titulo, ...resto] = t.pregunta.split('\n');
       out.push(`## ${titulo}`);
@@ -211,5 +228,5 @@ const MazoMD = (() => {
     return [...refs];
   }
 
-  return { parse, serialize, render, inline, imageRefs, hash };
+  return { parse, serialize, render, inline, imageRefs, hash, variante };
 })();
