@@ -323,6 +323,16 @@ dialog[open]{display:flex;flex-direction:column}
 button.link{background:none;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-align:left}
 button.link:hover{text-decoration:underline}
 
+/* Tarjetas más falladas */
+.fall-tools select{width:auto;max-width:100%}
+.fall-q{display:flex;align-items:center;gap:10px;min-width:0}
+.fall-q img{width:32px;height:32px;object-fit:contain;flex:none}
+.fall-q>span{display:grid;min-width:0}
+.fall-q .q{overflow-wrap:anywhere}
+.fall-q small{font-size:.76rem;overflow-wrap:anywhere}
+.fall-meter{display:inline-flex;width:60px;vertical-align:middle;margin-right:6px}
+.fall-pct{font-size:.8rem;font-variant-numeric:tabular-nums}
+
 /* Elegir tipo de respuesta */
 .modo-ops{display:grid;gap:8px}
 .modo-op{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;min-height:52px}

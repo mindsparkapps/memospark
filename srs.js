@@ -119,9 +119,22 @@ const SRS = (() => {
     return q;
   }
 
+  // Respuesta fuera de turno (repaso de las más falladas): una tarjeta en repaso que aún no vence.
+  // - Si se falla, cuenta como cualquier fallo (vuelve a aprendizaje y baja la facilidad).
+  // - Si se acierta, el nuevo intervalo se calcula con los días que pasaron de verdad (no con el intervalo
+  //   programado) y nunca acorta lo que ya estaba programado: así repasar antes no infla los intervalos.
+  function responderAdelantado(p, nota, now = Date.now(), rnd = Math.random()) {
+    const noVence = p.estado === 'repaso' && p.vence > dayStart(now) + DAY;
+    if (!noVence || nota === 1) return responder(p, nota, now, rnd);
+    const transcurridos = Math.max(1, Math.floor((dayStart(now) - dayStart(p.ultima || now)) / DAY));
+    const q = responder({ ...p, intervalo: Math.min(p.intervalo || 1, transcurridos), vence: dayStart(now) }, nota, now, rnd);
+    if (q.vence < p.vence) { q.vence = p.vence; q.intervalo = p.intervalo; }
+    return q;
+  }
+
   // Texto corto del tiempo hasta la próxima vez (para mostrar en cada botón)
-  function cuando(p, nota, now = Date.now()) {
-    const q = responder(p, nota, now, 0.5);
+  function cuando(p, nota, now = Date.now(), adelantado = false) {
+    const q = (adelantado ? responderAdelantado : responder)(p, nota, now, 0.5);
     if (q.estado === 'repaso') return formatoDias(q.intervalo);
     const min = Math.round((q.vence - now) / MIN);
     return min < 60 ? `${min} min` : `${Math.round(min / 60)} h`;
@@ -172,5 +185,5 @@ const SRS = (() => {
     return { nuevas: Math.min(nuevas, Math.max(0, nuevasRestantes)), nuevasTotal: nuevas, aprend, repaso };
   }
 
-  return { CFG, DAY, MIN, dayStart, dayKey, nuevo, responder, tiempoEsperado, notaAutomatica, cuando, formatoDias, siguiente, conteos, enAprendizaje };
+  return { CFG, DAY, MIN, dayStart, dayKey, nuevo, responder, responderAdelantado, tiempoEsperado, notaAutomatica, cuando, formatoDias, siguiente, conteos, enAprendizaje };
 })();

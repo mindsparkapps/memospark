@@ -49,7 +49,16 @@ La pestaña **Estadísticas** muestra:
 - respondidas y aciertos de hoy, tiempo medio por respuesta, recuerdo en los repasos de los últimos 30 días y racha (actual / mejor);
 - el estado de todas las tarjetas: sin ver, aprendiendo, en repaso y dominadas (intervalo de 21 días o más);
 - respuestas por día de los últimos 30 días y repasos programados para los próximos 14 (toca o pasa el mouse por una barra para ver el detalle);
-- una tabla por mazo con tarjetas, sin ver, dominadas, aciertos de 30 días y lo que toca hoy.
+- una tabla por mazo con tarjetas, sin ver, dominadas, aciertos de 30 días, lo que toca hoy y un botón para repasar sus más falladas;
+- **Tarjetas más falladas** (de todos los mazos o del elegido): errores, respuestas y % de error de cada una, con el botón **Repasar las más falladas**.
+
+### Repaso de las más falladas
+
+Toma hasta 20 tarjetas con más errores (según el registro de respuestas) y las muestra en orden al azar; las que vuelves a fallar salen otra vez en el mismo repaso (hasta 2 veces más). También está en el detalle de cada mazo.
+
+- Es una sesión **aparte**: no toca la sesión a medias (sus contadores y su tarjeta actual quedan igual).
+- **Cuenta para la repetición espaciada**: un fallo funciona como en cualquier sesión (la tarjeta vuelve a aprendizaje). Un acierto de una tarjeta que todavía no tocaba se agenda con los días que pasaron de verdad y nunca acorta lo ya programado (`SRS.responderAdelantado`), para que repasar antes no infle los intervalos.
+- Cada respuesta queda en el registro con `sesion: "falladas"` y `adelantada` (si la tarjeta aún no tocaba), así se puede analizar aparte al ajustar el algoritmo.
 
 ### Ajustes (⚙️)
 

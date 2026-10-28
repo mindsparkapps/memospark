@@ -10,7 +10,8 @@
 // 1.6 tipos de respuesta por mazo (Modos: / ||) elegidos antes de estudiar
 // 1.7 la tarjeta se ajusta al ancho del celular (también como plugin de ZenBan), en vertical y en horizontal
 // 1.8 guardar y salir a mitad de la sesión y seguir después desde la misma tarjeta
-const APP_VERSION = '1.8';
+// 1.9 tarjetas más falladas en Estadísticas y repaso aparte de ellas (cuenta para la repetición espaciada)
+const APP_VERSION = '1.9';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -107,7 +108,8 @@ function escribirSesion() {
   } catch (e) {}
 }
 function guardarSesion() {
-  if (!study || readOnly) return;
+  // El repaso de las más falladas es aparte: no pisa la sesión a medias
+  if (!study || readOnly || study.falladas) return;
   sesionGuardada = {
     target: study.target, hechas: study.hechas, aciertos: study.aciertos, inicial: study.inicial,
     contador: study.contador, actualId: study.actual && !study.actual.guardada ? study.actual.t.id : null, dia: SRS.dayKey(), ts: Date.now()
@@ -379,8 +381,38 @@ function renderStats() {
       <td class="num">${dom} <span class="muted">(${pctTxt(dom, ps.length)})</span></td>
       <td class="num">${pctTxt(ac, n)}${n ? ` <span class="muted">(${n})</span>` : ''}</td>
       <td class="num">${c.nuevas + c.aprend + c.repaso}</td>
+      <td>${(() => { const f = falladasDe(m.id).length; return f ? `<button class="btn sm" type="button" data-falladas="${esc(m.id)}">Repasar ${f}</button>` : '<span class="muted">—</span>'; })()}</td>
     </tr>`;
   }).join('');
+
+  // Las más falladas (de todos los mazos o del elegido)
+  if (statsFallMazo !== '*' && !S.mazos.has(statsFallMazo)) statsFallMazo = '*';
+  const fall = falladasDe(statsFallMazo);
+  const filaFallada = (x) => {
+    const preg = x.t.pregunta.split('\n')[0];
+    const img = (x.t.pregunta.match(/!\[[^\]]*\]\(([^)\s]+)\)/) || [])[1];
+    // Si la pregunta se repite entre tarjetas («¿Qué servicio es este?»), la respuesta correcta ayuda a reconocerla
+    const correcta = x.t.opciones && x.t.opciones.length ? MazoMD.variante((x.t.opciones.find(o => o.ok) || {}).t, 0) : MazoMD.variante(x.t.respuesta, 0);
+    return `<tr>
+      <td class="fall-q">${img ? `<img src="${esc(img)}" alt="">` : ''}<span><span class="q">${MazoMD.inline(preg)}</span><small class="muted">${MazoMD.inline(correcta || '')}${statsFallMazo === '*' && mazos.length > 1 ? ` · ${esc((S.mazos.get(x.t.mazoId) || {}).nombre || '')}` : ''}</small></span></td>
+      <td class="num">${x.errores}<span class="muted"> / ${x.total}</span></td>
+      <td><div class="meter fall-meter"><i style="width:${Math.round(x.tasa * 100)}%;background:var(--bad)"></i></div><span class="muted fall-pct">${Math.round(x.tasa * 100)}%</span></td>
+    </tr>`;
+  };
+  const bloqueFalladas = `
+    <div class="card">
+      <div class="card-h"><h3>Tarjetas más falladas</h3>${fall.length ? `<span class="chip">${fall.length >= 20 ? 'Las 20 primeras' : `${fall.length} con errores`}</span>` : ''}</div>
+      <div class="toolbar fall-tools">
+        ${mazos.length > 1 ? `<select id="fallMazo" aria-label="Mazo"><option value="*">Todos los mazos</option>${mazos.map(m => `<option value="${esc(m.id)}" ${m.id === statsFallMazo ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('')}</select>` : ''}
+        <button class="btn primary" type="button" data-falladas="${esc(statsFallMazo)}" ${fall.length ? '' : 'disabled'}>Repasar las más falladas${fall.length ? ` (${fall.length})` : ''}</button>
+      </div>
+      <p class="muted" style="font-size:.8rem;margin:8px 0 10px">Un repaso aparte: no cambia tu sesión a medias. Lo que respondas sí cuenta para la repetición espaciada y queda en el registro.</p>
+      ${fall.length ? `<div class="table-wrap"><table class="log-table">
+        <thead><tr><th>Tarjeta</th><th>Errores</th><th>% de error</th></tr></thead>
+        <tbody>${fall.slice(0, 10).map(filaFallada).join('')}</tbody>
+      </table></div>${fall.length > 10 ? `<p class="muted" style="font-size:.78rem;margin-top:6px">El repaso incluye las ${fall.length} de la lista completa; aquí se muestran las 10 primeras.</p>` : ''}`
+      : '<div class="chart-empty" style="height:90px">Aún no has fallado ninguna tarjeta 🎯</div>'}
+    </div>`;
 
   const estado = (n, txt, color) => `<div class="stat"><div class="v" style="color:${color}">${n}</div><div class="l">${txt}</div><div class="meter" style="margin-top:8px"><i style="width:${(n / total * 100).toFixed(1)}%;background:${color}"></i></div></div>`;
 
@@ -415,14 +447,19 @@ function renderStats() {
       </div>
     </div>
 
+    ${bloqueFalladas}
+
     <div class="card">
       <div class="card-h"><h3>Por mazo</h3></div>
       <div class="table-wrap"><table class="log-table">
-        <thead><tr><th>Mazo</th><th>Tarjetas</th><th>Sin ver</th><th>Dominadas</th><th>Aciertos 30 días</th><th>Para hoy</th></tr></thead>
+        <thead><tr><th>Mazo</th><th>Tarjetas</th><th>Sin ver</th><th>Dominadas</th><th>Aciertos 30 días</th><th>Para hoy</th><th>Más falladas</th></tr></thead>
         <tbody>${filasMazos}</tbody>
       </table></div>
     </div>`;
+  const sel = $('#fallMazo');
+  if (sel) sel.addEventListener('change', () => { statsFallMazo = sel.value; renderStats(); });
 }
+let statsFallMazo = '*';
 
 // Detalle de cada barra: al pasar el mouse, al enfocarla con el teclado o al tocarla
 function mostrarTip(btn) {
@@ -480,6 +517,7 @@ function renderMazo() {
         <label class="f">Tarjetas nuevas por día<input type="number" id="nuevasPorDia" min="0" max="500" value="${m.nuevasPorDia ?? 20}" ${readOnly ? 'disabled' : ''}></label>
         ${modosDe(m).length ? `<label class="f">Tipo de respuesta<select id="modoSelect">${m.modos.map((x, i) => `<option value="${i}" ${i === modoDe(m.id) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}
         <div class="toolbar" style="grid-column:span ${modosDe(m).length ? 2 : 3};justify-content:flex-end">
+          ${(() => { const f = falladasDe(m.id).length; return f ? `<button class="btn" type="button" data-falladas="${esc(m.id)}" title="Repaso aparte de las tarjetas que más fallas">Repasar más falladas (${f})</button>` : ''; })()}
           <button class="btn" type="button" data-act="export" title="Descargar el mazo en el formato .md">Exportar .md</button>
           <button class="btn" type="button" data-act="copy-md" title="Copiar el mazo para pedirle a una IA que lo amplíe o corrija">Copiar para la IA</button>
           <button class="btn" type="button" data-act="reset" ${readOnly ? 'disabled' : ''}>Reiniciar progreso</button>
@@ -749,7 +787,8 @@ function startStudy(target, { elegido = false } = {}) {
 
 // Salir del estudio (endStudy guarda lo respondido y deja la sesión lista para seguir después)
 function salirDelEstudio() {
-  if (study && study.target !== '*') go('mazo', { mazo: study.target }); else go('mazos');
+  if (study && study.volverA) go(study.volverA, study.target !== '*' ? { mazo: study.target } : {});
+  else if (study && study.target !== '*') go('mazo', { mazo: study.target }); else go('mazos');
 }
 
 function elegirModo(m) {
@@ -777,6 +816,12 @@ function endStudy() {
 }
 
 function renderCounts(tipoActual) {
+  if (study.falladas) {
+    const quedan = study.cola.length + (study.actual && !study.actual.guardada ? 1 : 0);
+    $('#studyCounts').innerHTML = `<span class="a" title="Quedan en este repaso">${quedan}</span>`;
+    $('#studyBar').style.width = `${Math.min(100, (study.hechas / Math.max(1, study.hechas + quedan)) * 100)}%`;
+    return;
+  }
   const c = SRS.conteos(candidatos(study.target), Infinity);
   const on = (t) => tipoActual === t ? ' data-on' : '';
   $('#studyCounts').innerHTML = `<span class="n" title="Nuevas"${on('nuevo')}>${c.nuevas}</span><span class="a" title="Aprendiendo"${on('aprendiendo')}>${c.aprend}</span><span class="r" title="Repaso"${on('repaso')}>${c.repaso}</span>`;
@@ -791,9 +836,53 @@ function shuffle(arr) {
   return a;
 }
 
+/* ---------- Repaso de las más falladas ---------- */
+// Errores de cada tarjeta según el registro de respuestas (o los fallos guardados en su progreso, si el registro
+// ya se recortó). Orden: más errores, luego mayor proporción de errores, luego la fallada más recientemente.
+function falladasDe(target, max = 20) {
+  const errores = new Map(), totales = new Map(), ultimo = new Map();
+  S.registro.forEach(r => {
+    totales.set(r.tarjetaId, (totales.get(r.tarjetaId) || 0) + 1);
+    if (!r.correcta) {
+      errores.set(r.tarjetaId, (errores.get(r.tarjetaId) || 0) + 1);
+      ultimo.set(r.tarjetaId, Math.max(ultimo.get(r.tarjetaId) || 0, r.ts));
+    }
+  });
+  const tarjetas = target === '*' ? [...S.tarjetas.values()] : tarjetasDe(target);
+  return tarjetas.map(t => {
+    const p = S.progreso.get(t.id);
+    const e = Math.max(errores.get(t.id) || 0, (p && p.fallos) || 0);
+    const n = Math.max(totales.get(t.id) || 0, e);
+    return { t, errores: e, total: n, tasa: n ? e / n : 0, ultimoFallo: ultimo.get(t.id) || 0 };
+  }).filter(x => x.errores > 0)
+    .sort((a, b) => b.errores - a.errores || b.tasa - a.tasa || b.ultimoFallo - a.ultimoFallo)
+    .slice(0, max);
+}
+
+// Sesión aparte con las 20 más falladas, en orden al azar. Cada respuesta actualiza la repetición espaciada
+// (con SRS.responderAdelantado) y queda en el registro; las que se fallan vuelven a salir hasta 2 veces más.
+function repasarFalladas(target) {
+  const lista = falladasDe(target);
+  if (!lista.length) { toast('Todavía no hay tarjetas falladas'); return; }
+  const volverA = vista === 'stats' ? 'stats' : target === '*' ? 'mazos' : 'mazo';
+  if (vista === 'estudio') endStudy();
+  study = { target, falladas: true, volverA, cola: shuffle(lista.map(x => x.t.id)), vueltas: {}, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, inicial: lista.length, actual: null, espera: null };
+  $('#studyTitle').textContent = `Más falladas · ${target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || ''}`;
+  if (target !== '*') mazoAbierto = target;
+  go('estudio');
+  nextCard();
+}
+
 function nextCard() {
   if (!study) return;
   clearTimeout(study.espera);
+  if (study.falladas) {
+    while (study.cola.length) {
+      const t = S.tarjetas.get(study.cola.shift());
+      if (t) return mostrarTarjeta(t, 'falladas');
+    }
+    return renderFin();
+  }
   const sig = SRS.siguiente(candidatos(study.target), { nuevasRestantes: Infinity, repasosRestantes: Infinity, ultimaId: study.ultimaId, contador: study.contador });
   if (!sig || sig.espera) { renderFin(sig && sig.espera); return; }
   const t = S.tarjetas.get(sig.p.id);
@@ -879,7 +968,7 @@ function mostrarSello(ok) {
 const ICON_OK = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_BAD = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m8 8 8 8m0-8-8 8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
 const LETRAS = 'ABCDEFGHIJ';
-const TIPO_TXT = { nuevo: 'Nueva', aprendiendo: 'Aprendiendo', repaso: 'Repaso' };
+const TIPO_TXT = { nuevo: 'Nueva', aprendiendo: 'Aprendiendo', repaso: 'Repaso', falladas: 'De las más falladas' };
 
 function renderCard() {
   const a = study.actual;
@@ -1015,7 +1104,7 @@ function renderBack() {
     : `Respondiste en ${seg} s${racha > 1 ? ` · ${racha} aciertos seguidos` : ''}`;
   $('#grades').innerHTML = `
     <div class="auto-grade g${a.nota}"><span class="badge">${NOTA_TXT[a.nota]}</span><span>${esc(motivo)}</span></div>
-    <div class="grades one"><button class="grade main" type="button" data-act="continue">Continuar<small>vuelve en ${SRS.cuando(p, a.nota)}</small></button></div>`;
+    <div class="grades one"><button class="grade main" type="button" data-act="continue">Continuar<small>vuelve en ${SRS.cuando(p, a.nota, Date.now(), !!study.falladas)}</small></button></div>`;
   $('.kbd-help').textContent = 'Espacio o Enter: continuar';
 }
 const NOTA_TXT = { 1: 'Otra vez', 2: 'Difícil', 3: 'Bien', 4: 'Fácil' };
@@ -1036,8 +1125,15 @@ async function guardarRespuesta(a) {
   a.guardada = true;
   const nota = a.nota;
   const antes = a.p;
-  const despues = SRS.responder(antes, nota);
+  // En el repaso de falladas la tarjeta puede no tocar todavía: se agenda sin inflar su intervalo
+  a.sesionTipo = study.falladas ? 'falladas' : 'normal';
+  a.adelantada = antes.estado === 'repaso' && antes.vence > SRS.dayStart() + SRS.DAY;
+  const despues = study.falladas ? SRS.responderAdelantado(antes, nota) : SRS.responder(antes, nota);
   const acierto = nota > 1;
+  if (study.falladas && !acierto && (study.vueltas[antes.id] || 0) < 2) {
+    study.vueltas[antes.id] = (study.vueltas[antes.id] || 0) + 1;
+    study.cola.splice(Math.min(3, study.cola.length), 0, antes.id);
+  }
   study.hechas++;
   if (acierto) study.aciertos++;
   study.contador++;
@@ -1074,6 +1170,7 @@ async function registrar(a, antes, despues) {
     correcta: a.resultado === 'ok', ms: Math.round(a.ms), esperadoMs: Math.round(a.esperadoMs), palabras: a.palabras,
     relacion: Math.round(a.ms / Math.max(1000, a.esperadoMs) * 100) / 100,
     ritmo: a.ritmo, nota: a.nota, rachaAntes: antes.racha || 0,
+    sesion: a.sesionTipo || 'normal', adelantada: !!a.adelantada,
     estadoAntes: antes.estado, intervaloAntes: antes.intervalo || 0, intervaloDespues: despues.estado === 'repaso' ? despues.intervalo : 0,
     facilidad: despues.facilidad,
     diasDesdeAnterior: antes.ultima ? Math.round((now - antes.ultima) / SRS.DAY * 100) / 100 : null
@@ -1111,7 +1208,7 @@ function analizarRegistro() {
 }
 
 function registroCsv() {
-  const cols = ['ts', 'fecha', 'tarjetaId', 'mazoId', 'modo', 'correcta', 'ms', 'esperadoMs', 'palabras', 'relacion', 'ritmo', 'nota', 'rachaAntes', 'estadoAntes', 'intervaloAntes', 'intervaloDespues', 'facilidad', 'diasDesdeAnterior', 'pregunta'];
+  const cols = ['ts', 'fecha', 'tarjetaId', 'mazoId', 'modo', 'correcta', 'ms', 'esperadoMs', 'palabras', 'relacion', 'ritmo', 'nota', 'rachaAntes', 'estadoAntes', 'intervaloAntes', 'intervaloDespues', 'facilidad', 'diasDesdeAnterior', 'sesion', 'adelantada', 'version', 'pregunta'];
   const q = (v) => { const s = v == null ? '' : String(v); return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const filas = [...S.registro.values()].sort((x, y) => x.ts - y.ts).map(f => {
     const t = S.tarjetas.get(f.tarjetaId);
@@ -1124,6 +1221,12 @@ function registroCsv() {
 function renderFin(espera) {
   const pct = study.hechas ? Math.round(study.aciertos / study.hechas * 100) : 0;
   renderCounts(null);
+  if (study.falladas) {
+    study.terminada = true;
+    $('#studyStage').innerHTML = `<div class="card done"><div class="big">💪</div><h3>Repaso de las más falladas listo</h3><p class="muted">${study.hechas} respuestas · ${pct}% de aciertos. Lo que respondiste ya quedó en tu repetición espaciada: las que volviste a fallar aparecerán pronto en tu sesión normal.${sesionPendiente() ? ' Tu sesión a medias sigue intacta.' : ''}</p><button class="btn primary" type="button" data-act="end-study">Volver</button></div>`;
+    $('#studyBar').style.width = '100%';
+    return;
+  }
   if (espera) {
     const min = Math.max(1, Math.ceil(espera / SRS.MIN));
     $('#studyStage').innerHTML = `<div class="card done"><div class="big">⏳</div><h3>Pausa breve</h3><p class="muted">Quedan tarjetas en aprendizaje. Vuelven en ${min} min; la sesión sigue sola.</p>${study.hechas ? `<p>${study.hechas} respondidas · ${pct}% de aciertos</p>` : ''}<div class="toolbar"><button class="btn" type="button" data-act="end-study">Terminar por ahora</button><button class="btn primary" type="button" data-act="study-ahead">Estudiar ya</button></div></div>`;
@@ -1192,6 +1295,8 @@ document.addEventListener('click', (e) => {
   if (g) { go(g.dataset.go); return; }
   const open = e.target.closest('[data-open]');
   if (open) { go('mazo', { mazo: open.dataset.open }); return; }
+  const fa = e.target.closest('[data-falladas]');
+  if (fa) { repasarFalladas(fa.dataset.falladas); return; }
   const st = e.target.closest('[data-study]');
   if (st) { startStudy(st.dataset.study); return; }
   const opt = e.target.closest('[data-opt]');
