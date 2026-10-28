@@ -11,7 +11,8 @@
 // 1.7 la tarjeta se ajusta al ancho del celular (también como plugin de ZenBan), en vertical y en horizontal
 // 1.8 guardar y salir a mitad de la sesión y seguir después desde la misma tarjeta
 // 1.9 tarjetas más falladas en Estadísticas y repaso aparte de ellas (cuenta para la repetición espaciada)
-const APP_VERSION = '1.9';
+// 2.0 Revisar mazo: lista paginada con imagen, pregunta y respuesta, veces vistas, % de acierto, Ver tarjeta y Probar
+const APP_VERSION = '2.0';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -174,7 +175,7 @@ function go(v, opts = {}) {
   if (opts.mazo) mazoAbierto = opts.mazo;
   $$('section.view').forEach(s => { s.hidden = s.id !== `v-${v}`; });
   document.body.classList.toggle('estudiando', v === 'estudio');
-  const tab = v === 'mazo' || v === 'estudio' ? 'mazos' : v;
+  const tab = v === 'mazo' || v === 'estudio' || v === 'revisar' ? 'mazos' : v;
   $$('nav.tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   render();
   window.scrollTo({ top: 0 });
@@ -185,6 +186,7 @@ function render() {
   else if (vista === 'mazo') renderMazo();
   else if (vista === 'formato') renderFormato();
   else if (vista === 'stats') renderStats();
+  else if (vista === 'revisar') renderRevisar();
   else if (vista === 'estudio' && !study) go('mazos');
   if (IN_ZENBAN && pluginReady && !readOnly) ZenBanPlugin.setTitle(pluginTitle());
 }
@@ -477,24 +479,164 @@ document.addEventListener('pointerout', (e) => { if (e.target.closest && e.targe
 document.addEventListener('focusin', (e) => { const b = e.target.closest && e.target.closest('.bar-hit'); mostrarTip(b || null); });
 window.addEventListener('scroll', () => mostrarTip(null), { passive: true });
 
+/* ---------- Vista: Revisar mazo (lista paginada de tarjetas) ---------- */
+const REV = { mazoId: null, pagina: 1, filtro: '', orden: 'mazo', porPagina: 20, ids: [] };
+
+// Veces vistas y aciertos de cada tarjeta según el registro (o las repeticiones del progreso si el registro se recortó)
+function statsPorTarjeta() {
+  const st = new Map();
+  S.registro.forEach(r => {
+    const s = st.get(r.tarjetaId) || { total: 0, ok: 0 };
+    s.total++; if (r.correcta) s.ok++;
+    st.set(r.tarjetaId, s);
+  });
+  return st;
+}
+const primeraImagen = (md) => (String(md || '').match(/!\[[^\]]*\]\(([^)\s]+)\)/) || [])[1] || '';
+// Respuesta correcta en el tipo de respuesta elegido para el mazo
+function respuestaDe(t, version) {
+  if (t.opciones && t.opciones.length) return t.opciones.filter(o => o.ok).map(o => MazoMD.variante(o.t, version)).join(' · ');
+  return MazoMD.variante(t.respuesta, version);
+}
+
+function filasRevisar(m) {
+  const st = statsPorTarjeta();
+  const version = modoDe(m.id);
+  const f = normalizar(REV.filtro);
+  let filas = tarjetasDe(m.id).map(t => {
+    const p = progresoDe(t);
+    const s = st.get(t.id) || { total: 0, ok: 0 };
+    const vistas = Math.max(s.total, p.reps || 0);
+    return { t, p, vistas, total: s.total, ok: s.ok, pct: s.total ? s.ok / s.total : null, resp: respuestaDe(t, version) };
+  });
+  if (f) filas = filas.filter(x => normalizar(`${x.t.pregunta} ${x.resp} ${x.t.explicacion}`).includes(f));
+  const pctOrden = (x) => x.pct == null ? 2 : x.pct;
+  if (REV.orden === 'acierto') filas.sort((a, b) => pctOrden(a) - pctOrden(b) || b.total - a.total);
+  else if (REV.orden === 'vistas') filas.sort((a, b) => a.vistas - b.vistas || a.t.orden - b.t.orden);
+  else if (REV.orden === 'masvistas') filas.sort((a, b) => b.vistas - a.vistas || a.t.orden - b.t.orden);
+  return filas;
+}
+
+function renderRevisar() {
+  const m = S.mazos.get(mazoAbierto);
+  if (!m) { go('mazos'); return; }
+  if (REV.mazoId !== m.id) Object.assign(REV, { mazoId: m.id, pagina: 1, filtro: '', orden: 'mazo' });
+  $('#revisar-body').innerHTML = `
+    <div><button class="btn ghost sm" type="button" data-open="${esc(m.id)}">← ${esc(m.nombre)}</button></div>
+    <div class="head-row">
+      <div><div class="eyebrow">Revisar mazo</div><h2>${esc(m.nombre)}</h2></div>
+    </div>
+    <div class="rev-tools">
+      <input type="search" id="revFiltro" placeholder="Buscar en preguntas y respuestas" value="${esc(REV.filtro)}" aria-label="Buscar">
+      <select id="revOrden" aria-label="Ordenar">
+        <option value="mazo" ${REV.orden === 'mazo' ? 'selected' : ''}>Orden del mazo</option>
+        <option value="acierto" ${REV.orden === 'acierto' ? 'selected' : ''}>Menor % de acierto</option>
+        <option value="vistas" ${REV.orden === 'vistas' ? 'selected' : ''}>Menos vistas</option>
+        <option value="masvistas" ${REV.orden === 'masvistas' ? 'selected' : ''}>Más vistas</option>
+      </select>
+    </div>
+    <div id="revLista"></div>`;
+  const fil = $('#revFiltro');
+  let tm = null;
+  fil.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { REV.filtro = fil.value; REV.pagina = 1; renderRevisarLista(); }, 200); });
+  $('#revOrden').addEventListener('change', (e) => { REV.orden = e.target.value; REV.pagina = 1; renderRevisarLista(); });
+  renderRevisarLista();
+}
+
+function renderRevisarLista() {
+  const m = S.mazos.get(REV.mazoId);
+  if (!m) return;
+  const filas = filasRevisar(m);
+  REV.ids = filas.map(x => x.t.id);
+  const paginas = Math.max(1, Math.ceil(filas.length / REV.porPagina));
+  REV.pagina = Math.min(Math.max(1, REV.pagina), paginas);
+  const desde = (REV.pagina - 1) * REV.porPagina;
+  const pagina = filas.slice(desde, desde + REV.porPagina);
+  const paginador = paginas > 1 ? `
+    <nav class="pager" aria-label="Páginas">
+      <button class="btn sm" type="button" data-pag="1" ${REV.pagina === 1 ? 'disabled' : ''} aria-label="Primera página">«</button>
+      <button class="btn sm" type="button" data-pag="${REV.pagina - 1}" ${REV.pagina === 1 ? 'disabled' : ''}>‹ Anterior</button>
+      <span class="pager-txt">Página <b>${REV.pagina}</b> de ${paginas}</span>
+      <button class="btn sm" type="button" data-pag="${REV.pagina + 1}" ${REV.pagina === paginas ? 'disabled' : ''}>Siguiente ›</button>
+      <button class="btn sm" type="button" data-pag="${paginas}" ${REV.pagina === paginas ? 'disabled' : ''} aria-label="Última página">»</button>
+    </nav>` : '';
+  const fila = (x, i) => {
+    const img = primeraImagen(x.t.pregunta);
+    const preg = x.t.pregunta.replace(/!\[[^\]]*\]\([^)]*\)/g, '').split('\n').filter(l => l.trim());
+    return `
+      <article class="rev-row">
+        <div class="rev-n">${desde + i + 1}</div>
+        <div class="rev-img">${img ? `<img src="${esc(img)}" alt="">` : '<span aria-hidden="true">?</span>'}</div>
+        <div class="rev-main">
+          <div class="rev-q">${MazoMD.inline(preg[0] || '')}</div>
+          ${preg.length > 1 ? `<div class="rev-sub">${MazoMD.inline(preg.slice(1).join(' '))}</div>` : ''}
+          <div class="rev-a"><span class="rev-ok">✓</span><span>${MazoMD.inline(x.resp)}</span></div>
+          <div class="rev-meta">${estadoChip(x.p)}<span>👁 ${x.vistas} ${x.vistas === 1 ? 'vez vista' : 'veces vista'}</span>${x.pct == null ? '<span class="muted">Sin respuestas aún</span>' : `<span class="rev-pct ${x.pct >= 0.85 ? 'alto' : x.pct >= 0.6 ? 'medio' : 'bajo'}">${Math.round(x.pct * 100)}% de acierto <small>(${x.ok}/${x.total})</small></span>`}${x.p.estado !== 'nuevo' ? `<span class="muted">Toca ${cuandoToca(x.p)}</span>` : ''}</div>
+        </div>
+        <div class="rev-btns">
+          <button class="btn sm" type="button" data-ver="${esc(x.t.id)}">Ver tarjeta</button>
+          <button class="btn sm primary" type="button" data-probar="${esc(x.t.id)}">Probar</button>
+        </div>
+      </article>`;
+  };
+  $('#revLista').innerHTML = `
+    <p class="muted rev-count">${filas.length === tarjetasDe(m.id).length ? `${filas.length} tarjetas` : `${filas.length} de ${tarjetasDe(m.id).length} tarjetas`}${paginas > 1 ? ` · ${desde + 1}–${desde + pagina.length}` : ''}</p>
+    ${filas.length ? `<div class="rev-list">${pagina.map(fila).join('')}</div>` : '<div class="chart-empty" style="height:100px">Ninguna tarjeta coincide con la búsqueda</div>'}
+    ${paginador}`;
+}
+
+// Tarjeta resuelta: pregunta con su imagen, alternativas con la correcta marcada y la explicación
+let verIdx = -1;
+function verTarjeta(id) {
+  const t = S.tarjetas.get(id);
+  if (!t) return;
+  verIdx = REV.ids.indexOf(id);
+  const version = modoDe(t.mazoId);
+  const p = progresoDe(t);
+  const s = statsPorTarjeta().get(id) || { total: 0, ok: 0 };
+  const vistas = Math.max(s.total, p.reps || 0);
+  const cuerpo = t.opciones && t.opciones.length
+    ? `<div class="opts">${t.opciones.map((o, i) => `<div class="opt static ${o.ok ? 'is-ok' : ''}"><span class="k">${o.ok ? '✓' : LETRAS[i]}</span><span class="t">${MazoMD.inline(MazoMD.variante(o.t, version))}</span></div>`).join('')}</div>`
+    : `<div class="answer-box"><div class="l">Respuesta</div><div class="md" style="font-size:1.1rem;font-weight:600">${MazoMD.render(MazoMD.variante(t.respuesta, version))}</div></div>`;
+  $('#verBody').innerHTML = `
+    <div class="qtext">${MazoMD.render(t.pregunta)}</div>
+    ${cuerpo}
+    ${t.explicacion ? `<div class="explain"><div class="l">Explicación</div><div class="md">${MazoMD.render(t.explicacion)}</div></div>` : ''}
+    <div class="rev-meta">${estadoChip(p)}<span>👁 ${vistas} ${vistas === 1 ? 'vez vista' : 'veces vista'}</span>${s.total ? `<span>${Math.round(s.ok / s.total * 100)}% de acierto (${s.ok}/${s.total})</span>` : '<span class="muted">Sin respuestas aún</span>'}${p.estado !== 'nuevo' ? `<span class="muted">Toca ${cuandoToca(p)}</span>` : ''}</div>`;
+  $('#verPos').textContent = verIdx >= 0 ? `${verIdx + 1} de ${REV.ids.length}` : '';
+  $('#verPrev').disabled = verIdx <= 0;
+  $('#verNext').disabled = verIdx < 0 || verIdx >= REV.ids.length - 1;
+  $('#verProbar').dataset.probar = id;
+  if (!$('#dlg-ver').open) $('#dlg-ver').showModal();
+  $('#dlg-ver .dlg-b').scrollTop = 0;
+}
+
+function probarTarjeta(id) {
+  const t = S.tarjetas.get(id);
+  if (!t) return;
+  if ($('#dlg-ver').open) $('#dlg-ver').close();
+  // Al volver, la lista abre en la página de esa tarjeta
+  const i = REV.ids.indexOf(id);
+  if (i >= 0) REV.pagina = Math.floor(i / REV.porPagina) + 1;
+  sesionAparte(t.mazoId, [id], 'prueba', 'Prueba');
+}
+
 /* ---------- Vista: detalle de un mazo ---------- */
+const estadoChip = (p) => p.estado === 'nuevo' ? '<span class="chip new">Nueva</span>'
+  : SRS.enAprendizaje(p) ? '<span class="chip learn">Aprendiendo</span>'
+  : p.intervalo >= 21 ? '<span class="chip due">Dominada</span>' : '<span class="chip">Repaso</span>';
+function cuandoToca(p, now = Date.now()) {
+  if (p.estado === 'nuevo') return '';
+  if (p.vence <= now) return 'ahora';
+  const d = Math.round((p.vence - SRS.dayStart(now)) / SRS.DAY);
+  if (SRS.enAprendizaje(p) || d < 1) return `en ${Math.max(1, Math.round((p.vence - now) / SRS.MIN))} min`;
+  return d === 1 ? 'mañana' : `en ${SRS.formatoDias(d)}`;
+}
 function renderMazo() {
   const m = S.mazos.get(mazoAbierto);
   if (!m) { go('mazos'); return; }
   const tarjetas = tarjetasDe(m.id);
   const c = conteosMazo(m);
-  const now = Date.now();
-  const estadoChip = (p) => p.estado === 'nuevo' ? '<span class="chip new">Nueva</span>'
-    : SRS.enAprendizaje(p) ? '<span class="chip learn">Aprendiendo</span>'
-    : p.intervalo >= 21 ? '<span class="chip due">Dominada</span>' : '<span class="chip">Repaso</span>';
-  const cuando = (p) => {
-    if (p.estado === 'nuevo') return '';
-    if (p.vence <= now) return 'ahora';
-    const d = Math.round((p.vence - SRS.dayStart(now)) / SRS.DAY);
-    if (SRS.enAprendizaje(p) || d < 1) return `en ${Math.max(1, Math.round((p.vence - now) / SRS.MIN))} min`;
-    return d === 1 ? 'mañana' : `en ${SRS.formatoDias(d)}`;
-  };
-  const primera = (t) => t.pregunta.split('\n')[0];
   const hay = c.nuevas + c.aprend + c.repaso;
 
   $('#mazo-body').innerHTML = `
@@ -526,8 +668,9 @@ function renderMazo() {
       </div>
       <p class="muted" style="font-size:.8rem;margin-top:10px">Para cambiar las tarjetas, edita el .md (o pídeselo a una IA) y vuelve a importarlo: las preguntas que no cambian conservan su progreso.</p>
     </div>
-    <div class="card-list">
-      ${tarjetas.map(t => { const p = progresoDe(t); return `<div class="card-row"><span class="q" title="${esc(primera(t))}">${MazoMD.inline(primera(t))}</span><span class="when">${cuando(p)}</span>${estadoChip(p)}</div>`; }).join('')}
+    <div class="card rev-entry">
+      <div class="grow"><b>Revisar las ${tarjetas.length} tarjetas</b><span>Imagen, pregunta y respuesta de cada una, con sus veces vistas y su % de acierto. Puedes ver cada tarjeta resuelta o probarla.</span></div>
+      <button class="btn primary" type="button" data-revisar="${esc(m.id)}">📖 Revisar mazo</button>
     </div>`;
 
   const inp = $('#nuevasPorDia');
@@ -864,10 +1007,17 @@ function falladasDe(target, max = 20) {
 function repasarFalladas(target) {
   const lista = falladasDe(target);
   if (!lista.length) { toast('Todavía no hay tarjetas falladas'); return; }
-  const volverA = vista === 'stats' ? 'stats' : target === '*' ? 'mazos' : 'mazo';
+  sesionAparte(target, shuffle(lista.map(x => x.t.id)), 'falladas', 'Más falladas', 2);
+}
+
+// Sesión aparte (repaso de falladas o «Probar» una tarjeta desde Revisar): no pisa la sesión a medias,
+// pero cada respuesta cuenta para la repetición espaciada y queda en el registro con su tipo.
+// vueltasMax: cuántas veces más sale una tarjeta que se falla dentro de la misma sesión.
+function sesionAparte(target, ids, tipo, titulo, vueltasMax = 0) {
+  const volverA = vista === 'stats' || vista === 'revisar' ? vista : target === '*' ? 'mazos' : 'mazo';
   if (vista === 'estudio') endStudy();
-  study = { target, falladas: true, volverA, cola: shuffle(lista.map(x => x.t.id)), vueltas: {}, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, inicial: lista.length, actual: null, espera: null };
-  $('#studyTitle').textContent = `Más falladas · ${target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || ''}`;
+  study = { target, falladas: true, tipoAparte: tipo, vueltasMax, volverA, cola: [...ids], vueltas: {}, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, inicial: ids.length, actual: null, espera: null };
+  $('#studyTitle').textContent = `${titulo} · ${target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || ''}`;
   if (target !== '*') mazoAbierto = target;
   go('estudio');
   nextCard();
@@ -879,7 +1029,7 @@ function nextCard() {
   if (study.falladas) {
     while (study.cola.length) {
       const t = S.tarjetas.get(study.cola.shift());
-      if (t) return mostrarTarjeta(t, 'falladas');
+      if (t) return mostrarTarjeta(t, study.tipoAparte);
     }
     return renderFin();
   }
@@ -968,7 +1118,7 @@ function mostrarSello(ok) {
 const ICON_OK = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_BAD = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m8 8 8 8m0-8-8 8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
 const LETRAS = 'ABCDEFGHIJ';
-const TIPO_TXT = { nuevo: 'Nueva', aprendiendo: 'Aprendiendo', repaso: 'Repaso', falladas: 'De las más falladas' };
+const TIPO_TXT = { nuevo: 'Nueva', aprendiendo: 'Aprendiendo', repaso: 'Repaso', falladas: 'De las más falladas', prueba: 'Prueba' };
 
 function renderCard() {
   const a = study.actual;
@@ -1126,11 +1276,11 @@ async function guardarRespuesta(a) {
   const nota = a.nota;
   const antes = a.p;
   // En el repaso de falladas la tarjeta puede no tocar todavía: se agenda sin inflar su intervalo
-  a.sesionTipo = study.falladas ? 'falladas' : 'normal';
+  a.sesionTipo = study.falladas ? study.tipoAparte : 'normal';
   a.adelantada = antes.estado === 'repaso' && antes.vence > SRS.dayStart() + SRS.DAY;
   const despues = study.falladas ? SRS.responderAdelantado(antes, nota) : SRS.responder(antes, nota);
   const acierto = nota > 1;
-  if (study.falladas && !acierto && (study.vueltas[antes.id] || 0) < 2) {
+  if (study.falladas && !acierto && (study.vueltas[antes.id] || 0) < study.vueltasMax) {
     study.vueltas[antes.id] = (study.vueltas[antes.id] || 0) + 1;
     study.cola.splice(Math.min(3, study.cola.length), 0, antes.id);
   }
@@ -1223,6 +1373,13 @@ function renderFin(espera) {
   renderCounts(null);
   if (study.falladas) {
     study.terminada = true;
+    if (study.tipoAparte === 'prueba') {
+      const ok = study.aciertos > 0;
+      // Al probar una sola tarjeta se vuelve solo a la lista (en la misma página)
+      $('#studyStage').innerHTML = `<div class="card done"><div class="big">${ok ? '✅' : '📌'}</div><h3>${ok ? '¡La sabías!' : 'Para la próxima'}</h3><p class="muted">La respuesta quedó registrada y cuenta para la repetición espaciada.</p><button class="btn primary" type="button" data-act="end-study">Volver a la lista</button></div>`;
+      $('#studyBar').style.width = '100%';
+      return;
+    }
     $('#studyStage').innerHTML = `<div class="card done"><div class="big">💪</div><h3>Repaso de las más falladas listo</h3><p class="muted">${study.hechas} respuestas · ${pct}% de aciertos. Lo que respondiste ya quedó en tu repetición espaciada: las que volviste a fallar aparecerán pronto en tu sesión normal.${sesionPendiente() ? ' Tu sesión a medias sigue intacta.' : ''}</p><button class="btn primary" type="button" data-act="end-study">Volver</button></div>`;
     $('#studyBar').style.width = '100%';
     return;
@@ -1295,6 +1452,16 @@ document.addEventListener('click', (e) => {
   if (g) { go(g.dataset.go); return; }
   const open = e.target.closest('[data-open]');
   if (open) { go('mazo', { mazo: open.dataset.open }); return; }
+  const rv = e.target.closest('[data-revisar]');
+  if (rv) { go('revisar', { mazo: rv.dataset.revisar }); return; }
+  const ver = e.target.closest('[data-ver]');
+  if (ver) { verTarjeta(ver.dataset.ver); return; }
+  const pr = e.target.closest('[data-probar]');
+  if (pr) { probarTarjeta(pr.dataset.probar); return; }
+  const pag = e.target.closest('[data-pag]');
+  if (pag) { REV.pagina = +pag.dataset.pag; renderRevisarLista(); $('#v-revisar').scrollIntoView({ block: 'start' }); return; }
+  if (e.target.closest('#verPrev') && verIdx > 0) { verTarjeta(REV.ids[verIdx - 1]); return; }
+  if (e.target.closest('#verNext') && verIdx < REV.ids.length - 1) { verTarjeta(REV.ids[verIdx + 1]); return; }
   const fa = e.target.closest('[data-falladas]');
   if (fa) { repasarFalladas(fa.dataset.falladas); return; }
   const st = e.target.closest('[data-study]');
@@ -1353,6 +1520,13 @@ document.addEventListener('click', (e) => {
       });
       break;
   }
+});
+
+// Flechas para pasar de una tarjeta a otra en «Ver tarjeta»
+document.addEventListener('keydown', (e) => {
+  if (!$('#dlg-ver').open) return;
+  if (e.key === 'ArrowLeft' && verIdx > 0) verTarjeta(REV.ids[verIdx - 1]);
+  if (e.key === 'ArrowRight' && verIdx < REV.ids.length - 1) verTarjeta(REV.ids[verIdx + 1]);
 });
 
 document.addEventListener('keydown', (e) => {

@@ -323,6 +323,43 @@ dialog[open]{display:flex;flex-direction:column}
 button.link{background:none;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-align:left}
 button.link:hover{text-decoration:underline}
 
+/* Revisar mazo */
+.rev-entry{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rev-entry .grow{flex:1 1 240px;min-width:0}
+.rev-entry b{display:block;font-family:var(--f-display);font-size:1.05rem}
+.rev-entry span{font-size:.85rem;color:var(--muted)}
+.rev-tools{display:flex;gap:8px;flex-wrap:wrap}
+.rev-tools input{flex:1 1 220px;width:auto}
+.rev-tools select{flex:0 1 210px;width:auto}
+.rev-count{font-size:.82rem;margin-bottom:8px}
+.rev-list{display:grid;gap:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.rev-row{display:grid;grid-template-columns:auto 56px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.rev-row:first-child{border-top:0}
+.rev-n{font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums;min-width:1.6em;text-align:right}
+.rev-img{width:56px;height:56px;border-radius:10px;background:var(--surface-2);display:grid;place-items:center;overflow:hidden}
+.rev-img img{width:100%;height:100%;object-fit:contain;padding:4px}
+.rev-img span{color:var(--muted);font-family:var(--f-display);font-size:1.3rem}
+.rev-main{display:grid;gap:3px;min-width:0}
+.rev-q{font-weight:700;overflow-wrap:anywhere}
+.rev-sub{font-size:.84rem;color:var(--muted);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rev-a{display:flex;gap:6px;font-size:.9rem;overflow-wrap:anywhere}
+.rev-ok{color:var(--good);font-weight:800;flex:none}
+.rev-meta{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:.78rem;color:var(--muted);margin-top:2px}
+.rev-pct{font-weight:700}
+.rev-pct small{font-weight:500;color:var(--muted)}
+.rev-pct.alto{color:var(--good)}.rev-pct.medio{color:var(--warn)}.rev-pct.bajo{color:var(--bad)}
+.rev-btns{display:flex;flex-direction:column;gap:6px}
+.pager{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:14px}
+.pager-txt{font-size:.88rem;color:var(--muted);padding:0 6px}
+#verBody{gap:14px}
+@media (max-width:640px){
+  .rev-row{grid-template-columns:44px minmax(0,1fr);gap:10px;padding:12px}
+  .rev-n{display:none}
+  .rev-img{width:44px;height:44px}
+  .rev-btns{grid-column:1/-1;flex-direction:row}
+  .rev-btns .btn{flex:1;min-height:40px}
+}
+
 /* Tarjetas más falladas */
 .fall-tools select{width:auto;max-width:100%}
 .fall-q{display:flex;align-items:center;gap:10px;min-width:0}

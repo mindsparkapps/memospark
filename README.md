@@ -52,6 +52,17 @@ La pestaña **Estadísticas** muestra:
 - una tabla por mazo con tarjetas, sin ver, dominadas, aciertos de 30 días, lo que toca hoy y un botón para repasar sus más falladas;
 - **Tarjetas más falladas** (de todos los mazos o del elegido): errores, respuestas y % de error de cada una, con el botón **Repasar las más falladas**.
 
+### Revisar mazo
+
+En el detalle de cada mazo, **📖 Revisar mazo** abre la lista de sus tarjetas, de a 20 por página (« ‹ Anterior · Página N de M · Siguiente › »). Cada tarjeta muestra:
+
+- su imagen, la pregunta y la respuesta correcta (en el tipo de respuesta elegido para el mazo);
+- su estado, las **veces vista**, el **% de acierto** (aciertos / respuestas, según el registro) y cuándo toca;
+- **Ver tarjeta**: la tarjeta resuelta (pregunta, imagen, alternativas con la correcta marcada y explicación), con ‹ Anterior / Siguiente › (o las flechas del teclado) para recorrer la lista;
+- **Probar**: responde esa tarjeta sola y vuelve a la lista, en la misma página. Como el repaso de falladas, no toca la sesión a medias pero cuenta para la repetición espaciada y queda en el registro con `sesion: "prueba"`.
+
+Se puede buscar en preguntas, respuestas y explicaciones, y ordenar por orden del mazo, menor % de acierto, menos vistas o más vistas.
+
 ### Repaso de las más falladas
 
 Toma hasta 20 tarjetas con más errores (según el registro de respuestas) y las muestra en orden al azar; las que vuelves a fallar salen otra vez en el mismo repaso (hasta 2 veces más). También está en el detalle de cada mazo.
