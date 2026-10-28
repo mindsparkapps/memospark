@@ -8,7 +8,8 @@
 // ajustes (vibración y sonido) · 1.3 botón para copiar las instrucciones de la IA en Mazos e Importar
 // 1.4 pestaña Estadísticas · 1.5 dentro de ZenBan se recarga sola si hay una versión publicada más nueva
 // 1.6 tipos de respuesta por mazo (Modos: / ||) elegidos antes de estudiar
-const APP_VERSION = '1.6';
+// 1.7 la tarjeta se ajusta al ancho del celular (también como plugin de ZenBan), en vertical y en horizontal
+const APP_VERSION = '1.7';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -135,6 +136,7 @@ function go(v, opts = {}) {
   vista = v;
   if (opts.mazo) mazoAbierto = opts.mazo;
   $$('section.view').forEach(s => { s.hidden = s.id !== `v-${v}`; });
+  document.body.classList.toggle('estudiando', v === 'estudio');
   const tab = v === 'mazo' || v === 'estudio' ? 'mazos' : v;
   $$('nav.tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   render();

@@ -55,7 +55,10 @@ nav.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accen
 .app-version{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .readonly-bar{background:var(--warn-soft);color:var(--ink);text-align:center;padding:8px 16px;font-size:.85rem;font-weight:600}
 
-section.view{padding-top:24px;display:grid;gap:20px}
+/* minmax(0,1fr): la columna nunca crece más que la pantalla por un texto largo (si no, en el celular hay que
+   desplazarse de lado para ver las alternativas) */
+section.view{padding-top:24px;display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+section.view>*{min-width:0}
 .head-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .toolbar.wrap-row{margin-top:16px}
@@ -96,7 +99,7 @@ textarea.mono{font-family:var(--f-mono);font-size:.85rem;min-height:220px}
 @media (max-width:640px){.today{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* Lista de mazos */
-.decks{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.decks{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr))}
 .deck{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .deck::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent)}
 .deck-name{font-family:var(--f-display);font-size:1.2rem;font-weight:700;background:none;border:0;padding:0;text-align:left;cursor:pointer;line-height:1.2}
@@ -154,9 +157,10 @@ pre.prompt{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(-
 @keyframes sello-temblor{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
 @keyframes sello-fuera{to{opacity:0;transform:scale(1.08)}}
 @media (prefers-reduced-motion:reduce){.sello svg,.sello.bad svg{animation:none}.sello .trazo{animation:none;stroke-dashoffset:0}}
-.flip-in{display:grid;transition:transform .6s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d}
+.flip-in{display:grid;grid-template-columns:minmax(0,1fr);transition:transform .6s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d}
 .flip.flipped .flip-in{transform:rotateY(180deg)}
-.face{grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:24px;display:grid;gap:18px;align-content:start;min-height:340px}
+.face{grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:24px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-content:start;min-height:340px;min-width:0}
+.qtext,.md,.opt .t,.answer-box{overflow-wrap:anywhere}
 .face.back{transform:rotateY(180deg)}
 .flip.flipped .face.front{pointer-events:none}
 .flip:not(.flipped) .face.back{pointer-events:none}
@@ -176,7 +180,7 @@ pre.prompt{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(-
 .md p+p{margin-top:8px}
 .md h4,.qtext h4{margin:10px 0 4px;font-family:var(--f-display)}
 
-.opts{display:grid;gap:10px}
+.opts{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
 .opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;min-height:52px;cursor:pointer;font-weight:500;font-size:1rem;transition:border-color .15s,background .15s,transform .1s}
 .opt:hover{border-color:var(--accent)}
 .opt:active{transform:scale(.99)}
@@ -225,6 +229,45 @@ pre.prompt{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(-
 .grades.one{margin-top:10px}
 .kbd-help{text-align:center;font-size:.75rem;color:var(--muted);margin-top:10px}
 @media (hover:none){.kbd-help{display:none}}
+/* Celular en horizontal (poca altura): tarjeta más compacta, alternativas en dos columnas y cabecera que no
+   se queda fija, para ver pregunta y alternativas sin desplazarse tanto */
+@media (max-height:520px) and (orientation:landscape){
+  header.top{position:static}
+  section.view{padding-top:10px;gap:10px}
+  .face{min-height:0;padding:14px 16px;gap:10px;border-radius:14px}
+  .qtext{font-size:1rem}
+  .qtext p:first-child{font-size:1.1rem}
+  .qtext img,.md img{max-height:110px;margin:4px auto}
+  .qtext img[src*=".svg"]{width:72px}
+  body.estudiando header.top{display:none}
+  .study{max-width:none}
+  .opts{gap:6px}
+  .opt{min-height:44px;padding:8px 10px;font-size:.92rem}
+  /* Pregunta a la izquierda, alternativas a la derecha (y en el reverso, alternativas y explicación lado a lado) */
+  .face.front{grid-template-columns:minmax(0,.65fr) minmax(0,1.35fr);align-items:start}
+  .face.front>.face-tag{display:none}
+  .face.front>.qtext{grid-column:1;grid-row:1/span 4}
+  .opt{font-size:.88rem;line-height:1.35}
+  .opt .k{width:24px;height:24px}
+  .face.front>:not(.face-tag):not(.qtext){grid-column:2}
+  .face.back{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+  .face.back>.verdict,.face.back>.q-small{grid-column:1/-1}
+  .face.back>.explain{grid-column:2;grid-row:3/span 2;border-top:0;padding-top:0}
+  .verdict{padding:8px 12px;font-size:1.1rem}
+  .grades.one{margin-top:8px}
+  .auto-grade{margin-top:8px}
+  .kbd-help{display:none}
+}
+/* Celular en vertical: durante el estudio se esconde la fila de pestañas y la tarjeta es más compacta */
+@media (max-width:640px){
+  body.estudiando nav.tabs{display:none}
+  body.estudiando section.view{padding-top:12px;gap:12px}
+  .face{padding:16px;gap:12px}
+  .opts{gap:8px}
+  .opt{padding:10px 12px;font-size:.95rem}
+  .qtext img[src*=".svg"]{width:88px}
+  .toolbar .btn{white-space:normal;text-align:center}
+}
 @media (max-width:480px){.grades.four{grid-template-columns:repeat(2,minmax(0,1fr))}.face{padding:18px;min-height:300px}.qtext p:first-child{font-size:1.22rem}.qtext img,.md img{max-height:200px}}
 
 .done{text-align:center;display:grid;gap:14px;justify-items:center;padding:32px 20px}
