@@ -13,7 +13,7 @@
 // 1.9 tarjetas más falladas en Estadísticas y repaso aparte de ellas (cuenta para la repetición espaciada)
 // 2.0 Revisar mazo: lista paginada con imagen, pregunta y respuesta, veces vistas, % de acierto, Ver tarjeta y Probar
 // 2.1 estilo propio o de ZenBan (botón arriba y en la barra de la ventana de ZenBan), como TablaQuiz
-const APP_VERSION = '2.1';
+const APP_VERSION = '2.2';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -1601,7 +1601,9 @@ let temaHost = null;
 function aplicarEstilo() {
   const r = document.documentElement, z = ajustes.estilo === 'zenban';
   r.dataset.estilo = z ? 'zenban' : 'propio';
-  r.dataset.theme = temaHost || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const sistema = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  // Dentro de ZenBan solo el estilo de ZenBan sigue su tema; el propio es el claro de siempre (como TablaQuiz)
+  r.dataset.theme = IN_ZENBAN ? (z ? (temaHost || sistema) : 'light') : sistema;
   const label = z ? '🎨 ZenBan' : '🎨 Propio';
   const title = z ? 'Estilo de ZenBan. Toca para usar el estilo propio de MemoSpark' : 'Estilo propio de MemoSpark. Toca para usar el de ZenBan';
   const b = $('#estiloBtn'); b.textContent = label; b.title = title;
