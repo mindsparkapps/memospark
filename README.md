@@ -89,6 +89,8 @@ MemoSpark funciona también como objeto del lienzo de ZenBan:
 
 Dentro de ZenBan la ventana va aislada, así que sus mazos y su progreso se guardan **dentro del objeto** y se sincronizan con el Drive de ZenBan (no usa la cuenta de Google de MemoSpark). Cada objeto tiene sus propios mazos. En un tablero de solo lectura se puede estudiar, pero no se guarda.
 
+**Estilo:** el botón 🎨 de arriba (y el de la barra de la ventana de ZenBan, junto a ⟳) alterna entre el estilo de ZenBan (su paleta y tipografía) y el propio de MemoSpark (violeta). Ambos siguen el tema claro u oscuro de ZenBan (solo, el del sistema). Dentro de ZenBan arranca con el estilo de ZenBan y la elección se guarda en el objeto.
+
 - `zenban-plugin.json`: nombre, ícono y tamaño del plugin.
 - `zenban-plugin-sdk.js`: copia del SDK de ZenBan.
 

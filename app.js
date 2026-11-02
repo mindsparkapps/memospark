@@ -12,7 +12,8 @@
 // 1.8 guardar y salir a mitad de la sesión y seguir después desde la misma tarjeta
 // 1.9 tarjetas más falladas en Estadísticas y repaso aparte de ellas (cuenta para la repetición espaciada)
 // 2.0 Revisar mazo: lista paginada con imagen, pregunta y respuesta, veces vistas, % de acierto, Ver tarjeta y Probar
-const APP_VERSION = '2.0';
+// 2.1 estilo propio o de ZenBan (botón arriba y en la barra de la ventana de ZenBan), como TablaQuiz
+const APP_VERSION = '2.1';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -22,7 +23,7 @@ let readOnly = false;
 // Ajustes de este dispositivo (no se sincronizan: vibrar en el celular no tiene por qué valer para el PC).
 // Dentro de ZenBan no hay localStorage, así que ahí duran mientras la ventana esté abierta.
 const AJUSTES_KEY = 'memospark_ajustes';
-const ajustes = { vibrar: true, sonido: true };
+const ajustes = { vibrar: true, sonido: true, estilo: IN_ZENBAN ? 'zenban' : 'propio' };
 try { Object.assign(ajustes, JSON.parse(localStorage.getItem(AJUSTES_KEY) || '{}')); } catch (e) {}
 function guardarAjustes() {
   try { localStorage.setItem(AJUSTES_KEY, JSON.stringify(ajustes)); } catch (e) {}
@@ -86,6 +87,7 @@ function pluginSnapshot() {
   const out = { v: 1 };
   STORES.forEach(s => { out[s] = [...S[s].values()]; });
   if (sesionGuardada) out.sesion = sesionGuardada;
+  out.ajustes = { estilo: ajustes.estilo };
   return out;
 }
 
@@ -1594,13 +1596,37 @@ function revisarVersionPublicada() {
   }).catch(() => {});
 }
 
+// ---------- estilo: ZenBan (su paleta) o propio (el violeta de MemoSpark); los dos siguen el tema claro / oscuro ----------
+let temaHost = null;
+function aplicarEstilo() {
+  const r = document.documentElement, z = ajustes.estilo === 'zenban';
+  r.dataset.estilo = z ? 'zenban' : 'propio';
+  r.dataset.theme = temaHost || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const label = z ? '🎨 ZenBan' : '🎨 Propio';
+  const title = z ? 'Estilo de ZenBan. Toca para usar el estilo propio de MemoSpark' : 'Estilo propio de MemoSpark. Toca para usar el de ZenBan';
+  const b = $('#estiloBtn'); b.textContent = label; b.title = title;
+  if (IN_ZENBAN && ZenBanPlugin.setBarButton) ZenBanPlugin.setBarButton(label, title); // también en la barra de la ventana, junto a ⟳
+}
+function cambiarEstilo() {
+  ajustes.estilo = ajustes.estilo === 'zenban' ? 'propio' : 'zenban';
+  aplicarEstilo();
+  guardarAjustes();
+  if (IN_ZENBAN) { clearTimeout(pluginTimer); pluginTimer = setTimeout(pluginSaveNow, 0); }
+}
+$('#estiloBtn').onclick = cambiarEstilo;
+if (IN_ZENBAN && ZenBanPlugin.onBarClick) ZenBanPlugin.onBarClick(cambiarEstilo);
+if (!IN_ZENBAN) matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', aplicarEstilo);
+aplicarEstilo();
+
 if (IN_ZENBAN) {
   document.body.classList.add('in-zenban');
   revisarVersionPublicada();
   ZenBanPlugin.onInit(({ state, theme, readOnly: ro }) => {
     readOnly = !!ro;
     $('#readonlyBar').hidden = !readOnly;
-    if (theme) document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+    if (theme) temaHost = theme === 'light' ? 'light' : 'dark';
+    if (state && state.ajustes && (state.ajustes.estilo === 'zenban' || state.ajustes.estilo === 'propio')) ajustes.estilo = state.ajustes.estilo;
+    aplicarEstilo();
     // Si estoy en medio de una tarjeta, solo se actualizan los datos (no se interrumpe)
     STORES.forEach(s => { S[s] = new Map(((state && state[s]) || []).map(r => [r.id, r])); });
     if (vista !== 'estudio') sesionGuardada = (state && state.sesion) || null;

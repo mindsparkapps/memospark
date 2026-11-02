@@ -24,6 +24,23 @@
   --new:#6ea2ff; --learn:#f06c7b; --due:#45c98d;
   --shadow:0 1px 2px rgba(0,0,0,.35),0 8px 28px rgba(0,0,0,.3); color-scheme:dark}
 
+/* Estilo de ZenBan (paleta y tipografía de ZenBan sobre el tema claro u oscuro). El estilo propio es el violeta de MemoSpark. */
+:root[data-estilo="zenban"]{--f-display:system-ui,-apple-system,"Segoe UI",sans-serif;--f-body:system-ui,-apple-system,"Segoe UI",sans-serif}
+:root[data-estilo="zenban"][data-theme="dark"]{
+  --bg:#0f172a; --surface:#1e293b; --surface-2:#273449; --ink:#f8fafc; --muted:#94a3b8; --line:#334155;
+  --accent:#6366f1; --accent-ink:#ffffff; --accent-soft:#312e81;
+  --good:#10b981; --good-soft:#0f3a2e; --bad:#ef4444; --bad-soft:#43212a; --warn:#f59e0b; --warn-soft:#3a2d12;
+  --new:#818cf8; --learn:#ef4444; --due:#10b981;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 8px 28px rgba(0,0,0,.3); color-scheme:dark}
+:root[data-estilo="zenban"][data-theme="light"]{
+  --bg:#f1f5f9; --surface:#ffffff; --surface-2:#e2e8f0; --ink:#0f172a; --muted:#64748b; --line:#cbd5e1;
+  --accent:#6366f1; --accent-ink:#ffffff; --accent-soft:#e0e7ff;
+  --good:#059669; --good-soft:#d1fae5; --bad:#dc2626; --bad-soft:#fee2e2; --warn:#b45309; --warn-soft:#fef3c7;
+  --new:#4f46e5; --learn:#dc2626; --due:#059669;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 8px 28px rgba(15,23,42,.08); color-scheme:light}
+.estilo{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;min-height:40px;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap;flex:none}
+.estilo:hover{border-color:var(--muted)}
+
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;padding-bottom:env(safe-area-inset-bottom,0px)}
