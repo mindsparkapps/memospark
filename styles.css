@@ -186,54 +186,62 @@ pre.prompt{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(-
 @keyframes sello-temblor{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
 @keyframes sello-fuera{to{opacity:0;transform:scale(1.08)}}
 @media (prefers-reduced-motion:reduce){.sello svg,.sello.bad svg{animation:none}.sello .trazo{animation:none;stroke-dashoffset:0}}
-@keyframes masc-oreja-i{50%{transform:rotate(-14deg)}}
-@keyframes masc-oreja-d{50%{transform:rotate(14deg)}}
-@keyframes masc-on{to{opacity:1}}
-@keyframes masc-off{to{opacity:0}}
-@keyframes masc-lagrima{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:.9;transform:translateY(14px)}}
-/* Perrito estilo pegatina: asoma desde el borde de abajo a la izquierda, actúa ~2 s y baja */
-.perro-escena{position:fixed;left:max(10px,env(safe-area-inset-left,0px));bottom:0;z-index:60;width:clamp(140px,26vw,200px);pointer-events:none;display:grid;justify-items:center;animation:perro-entra .45s cubic-bezier(.2,1.5,.4,1) both,perro-sale .45s ease-in 2.45s forwards}
+/* Perrito de cuerpo entero: sube desde abajo a la izquierda, actúa ~2,5 s y baja.
+   El cuerpo se aplasta y estira; la cabeza no se deforma, solo sube y baja con él (cabeza-pos)
+   y gira hacia la pantalla moviendo la cara dentro de su contorno (cara). */
+.perro-escena{position:fixed;left:max(6px,env(safe-area-inset-left,0px));bottom:4px;z-index:60;width:clamp(160px,30vw,230px);pointer-events:none;animation:perro-entra .4s cubic-bezier(.3,1.3,.5,1) both,perro-sale .45s ease-in 2.75s forwards}
 .perro-escena .perro{width:100%;height:auto;overflow:visible;display:block}
-.perro-globo{position:relative;margin-bottom:6px;background:var(--surface);color:var(--ink);border:3px solid #4a2c17;border-radius:16px;padding:6px 14px;font-family:var(--f-display);font-weight:800;font-size:1.1rem;white-space:nowrap;animation:perro-globo .35s cubic-bezier(.2,1.6,.4,1) .35s both}
-.perro-globo::after{content:"";position:absolute;left:50%;bottom:-9px;width:13px;height:13px;background:var(--surface);border:3px solid #4a2c17;border-top:0;border-left:0;transform:translateX(-50%) rotate(45deg)}
-.perro-escena.ok .perro-globo{color:var(--good)}
-.perro-escena.bad .perro-globo{color:var(--bad)}
-.perro .cuerpo{transform-box:view-box;transform-origin:100px 200px}
-.perro .cabeza{transform-box:view-box;transform-origin:100px 160px}
-.perro .oreja{transform-box:fill-box;transform-origin:50% 8%}
-.perro .pata-saludo{transform-box:view-box;transform-origin:163px 200px}
-.perro .foco{transform-box:fill-box;transform-origin:50% 100%}
-.perro.ok .cuerpo{animation:perro-rebote .5s ease-in-out .45s 3}
-.perro.ok .cabeza{animation:perro-ladea 1.3s ease-in-out .5s}
-.perro.ok .o-i{animation:masc-oreja-i .5s ease-in-out .45s 3}
-.perro.ok .o-d{animation:masc-oreja-d .5s ease-in-out .45s 3}
-.perro.ok .pata-saludo{animation:perro-saluda 1.6s ease-in-out .35s both}
-.perro .movimiento{opacity:0;animation:perro-parpadeo .3s steps(2) .6s 5}
-.perro .foco{animation:perro-foco .45s cubic-bezier(.2,1.6,.4,1) .6s both}
-.perro .rayos{opacity:0;animation:perro-parpadeo .35s steps(2) 1s 4 forwards}
-.perro .guino-cerrado{opacity:0;animation:masc-on .01s .7s forwards}
-.perro .guino-abierto{animation:masc-off .01s .7s forwards}
-.perro .lengua{transform-box:fill-box;transform-origin:50% 0;animation:perro-lengua .25s ease-in-out .5s 6 alternate}
-.perro.bad .cabeza{animation:perro-cabizbajo .5s ease-out .45s forwards}
-.perro.bad .cuerpo{animation:perro-suspiro 1.4s ease-in-out .6s}
-.perro.bad .o-i{transform:translateY(8px) rotate(-10deg)}
-.perro.bad .o-d{transform:translateY(8px) rotate(10deg)}
-.perro .patas-nervio{animation:perro-nervio .18s ease-in-out .5s 8 alternate}
-.perro .lagrima{opacity:0;animation:masc-lagrima 1.1s ease-in .8s forwards}
-.perro .sudor{opacity:0;animation:masc-lagrima .9s ease-in .5s forwards}
-@keyframes perro-entra{from{transform:translateY(110%)}to{transform:translateY(0)}}
-@keyframes perro-sale{to{transform:translateY(115%)}}
-@keyframes perro-globo{from{opacity:0;transform:scale(.4) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
-@keyframes perro-rebote{0%,100%{transform:scale(1,1)}30%{transform:scale(1.06,.93)}65%{transform:scale(.97,1.05)}}
-@keyframes perro-ladea{25%,60%{transform:rotate(-7deg)}80%{transform:rotate(3deg)}}
-@keyframes perro-saluda{0%{transform:translateY(70px)}15%{transform:translateY(0) rotate(0)}30%{transform:rotate(14deg)}45%{transform:rotate(-6deg)}60%{transform:rotate(14deg)}75%{transform:rotate(-6deg)}90%,100%{transform:rotate(0)}}
-@keyframes perro-parpadeo{to{opacity:1}}
-@keyframes perro-foco{from{opacity:0;transform:scale(.2) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(0)}}
-@keyframes perro-lengua{to{transform:scaleY(1.15)}}
-@keyframes perro-cabizbajo{to{transform:translateY(6px) rotate(5deg)}}
-@keyframes perro-suspiro{0%,100%{transform:scale(1,1)}40%{transform:scale(1.03,.95)}70%{transform:scale(.99,1.01)}}
-@keyframes perro-nervio{from{transform:translateX(-3px)}to{transform:translateX(3px)}}
-@media (prefers-reduced-motion:reduce){.perro-escena,.perro-escena *{animation:none!important}.perro .guino-cerrado,.perro .movimiento,.perro .rayos{opacity:1}.perro .guino-abierto{opacity:0}.perro .lagrima,.perro .sudor{opacity:.9}.perro.bad .cabeza{transform:translateY(6px) rotate(5deg)}}
+.perro .cuerpo{transform-box:view-box;transform-origin:100px 176px;animation:perro-aterriza .5s ease-out .3s}
+.perro .cabeza-pos{animation:perro-aterriza-cabeza .5s ease-out .3s}
+.perro .cabeza{transform-box:view-box;transform-origin:105px 110px}
+.perro .sombra{transform-box:view-box;transform-origin:89px 174.5px}
+.perro .cola{transform-box:view-box;transform-origin:50px 163px;animation:perro-cola .22s ease-in-out .5s 8 alternate}
+.perro .ojo{transform-box:fill-box;transform-origin:50% 50%}
+.perro .cara{animation:perro-gira .45s cubic-bezier(.3,.8,.3,1) .45s both}
+.perro .oreja-i{animation:perro-gira-oreja-i .45s cubic-bezier(.3,.8,.3,1) .45s both}
+.perro .oreja-d{animation:perro-gira-oreja-d .45s cubic-bezier(.3,.8,.3,1) .45s both}
+.perro.ok .salto{animation:perro-salto .7s ease-in-out 1.2s}
+.perro.ok .cuerpo{animation:perro-aterriza .5s ease-out .3s,perro-salto-cuerpo .7s ease-in-out 1.2s}
+.perro.ok .cabeza-pos{animation:perro-aterriza-cabeza .5s ease-out .3s,perro-salto-cabeza .7s ease-in-out 1.2s}
+.perro.ok .sombra{animation:perro-sombra .7s ease-in-out 1.2s}
+.perro.ok .cabeza{animation:perro-ladea 1s ease-in-out 1.1s}
+.perro.ok .ojo{animation:perro-parpadeo .18s ease-in-out 2.2s}
+.perro .lengua{transform-box:fill-box;transform-origin:50% 0;animation:perro-lengua .35s cubic-bezier(.2,1.6,.4,1) .85s both,perro-lengua-mueve .16s ease-in-out 1.25s 6 alternate}
+.perro.bad .cuerpo{animation:perro-aterriza .5s ease-out .3s,perro-suspiro 1.2s ease-in-out 1s forwards}
+.perro.bad .cabeza-pos{animation:perro-aterriza-cabeza .5s ease-out .3s,perro-suspiro-cabeza 1.2s ease-in-out 1s forwards}
+.perro.bad .cabeza{animation:perro-cabizbajo .6s ease-out 1s forwards}
+.perro.bad .cola{animation:none;transform:rotate(-30deg)}
+.perro .lagrima{opacity:0;animation:perro-lagrima 1.1s ease-in 1.1s forwards}
+.perro .pensar>*{transform-box:fill-box;transform-origin:50% 50%;opacity:0}
+.perro .p1{animation:perro-pop .25s cubic-bezier(.2,1.6,.4,1) .95s forwards}
+.perro .p2{animation:perro-pop .25s cubic-bezier(.2,1.6,.4,1) 1.08s forwards}
+.perro .nube{animation:perro-pop .35s cubic-bezier(.2,1.6,.4,1) 1.2s forwards}
+.perro .rayos{opacity:0;animation:perro-brillo .3s steps(2) 1.5s 5 forwards}
+.perro .equis{transform-box:fill-box;transform-origin:50% 50%;animation:perro-tiembla .4s ease-in-out 1.55s}
+@keyframes perro-entra{from{transform:translateY(105%)}to{transform:translateY(0)}}
+@keyframes perro-sale{to{transform:translateY(110%)}}
+@keyframes perro-aterriza{0%{transform:scale(1,1)}30%{transform:scale(1.14,.86)}60%{transform:scale(.95,1.07)}100%{transform:scale(1,1)}}
+@keyframes perro-aterriza-cabeza{0%{transform:translateY(0)}30%{transform:translateY(9.2px)}60%{transform:translateY(-4.6px)}100%{transform:translateY(0)}}
+@keyframes perro-salto{0%,22%{transform:translateY(0)}52%{transform:translateY(-24px)}80%,100%{transform:translateY(0)}}
+@keyframes perro-salto-cuerpo{0%{transform:scale(1,1)}22%{transform:scale(1.1,.9)}52%{transform:scale(.93,1.09)}82%{transform:scale(1.12,.88)}100%{transform:scale(1,1)}}
+@keyframes perro-salto-cabeza{0%{transform:translateY(0)}22%{transform:translateY(6.6px)}52%{transform:translateY(-5.9px)}82%{transform:translateY(7.9px)}100%{transform:translateY(0)}}
+@keyframes perro-sombra{0%,22%,80%,100%{transform:scale(1);opacity:1}52%{transform:scale(.7);opacity:.5}}
+@keyframes perro-gira{from{transform:translateX(13px)}to{transform:translateX(0)}}
+@keyframes perro-gira-oreja-i{from{transform:translateX(6px)}to{transform:translateX(0)}}
+@keyframes perro-gira-oreja-d{from{transform:translateX(-7px)}to{transform:translateX(0)}}
+@keyframes perro-ladea{30%,65%{transform:rotate(-6deg)}}
+@keyframes perro-parpadeo{50%{transform:scaleY(.1)}}
+@keyframes perro-cola{from{transform:rotate(-12deg)}to{transform:rotate(14deg)}}
+@keyframes perro-lengua{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes perro-lengua-mueve{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+@keyframes perro-suspiro{40%{transform:scale(1.05,.93)}100%{transform:scale(1.02,.97)}}
+@keyframes perro-suspiro-cabeza{40%{transform:translateY(4.6px)}100%{transform:translateY(2px)}}
+@keyframes perro-cabizbajo{to{transform:translateY(3px) rotate(5deg)}}
+@keyframes perro-lagrima{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:.9;transform:translateY(12px)}}
+@keyframes perro-pop{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:scale(1)}}
+@keyframes perro-brillo{to{opacity:1}}
+@keyframes perro-tiembla{20%{transform:rotate(-14deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(5deg)}}
+@media (prefers-reduced-motion:reduce){.perro-escena,.perro-escena *{animation:none!important}.perro .pensar>*,.perro .rayos,.perro .lagrima{opacity:1}}
 .flip-in{display:grid;grid-template-columns:minmax(0,1fr);transition:transform .6s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d}
 .flip.flipped .flip-in{transform:rotateY(180deg)}
 .face{grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:24px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-content:start;min-height:340px;min-width:0}

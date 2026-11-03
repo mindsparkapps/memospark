@@ -24,7 +24,9 @@
 // 3.4 perrito de cuerpo completo que sube desde abajo, celebra o se entristece y dice una frase
 // 3.5 el perrito pasa a estilo pegatina: contorno grueso, primer plano, boca abierta, saludo y ampolleta de idea
 // 3.6 se quita la cabecita del perrito del veredicto; queda solo el perrito grande
-const APP_VERSION = '3.6';
+// 3.7 perrito nuevo de cuerpo entero calcado del personaje de referencia: se aplasta y estira, gira la cabeza
+//     a la pantalla y piensa en una ampolleta (saca la lengua) o en una X (cara triste)
+const APP_VERSION = '3.7';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -1246,64 +1248,92 @@ function mostrarSello(ok) {
   sello.addEventListener('animationend', (e) => { if (e.target === sello) sello.remove(); });
 }
 
-// Perrito de cuerpo completo: entra por abajo, celebra (salta, guiña, saluda y mueve la cola) o se pone triste, y se va
-const FRASES_OK = ['¡Genial!', '¡Eso es!', '¡Muy bien!', '¡Crack!', '¡Así se hace!'];
-const FRASES_BAD = ['¡Casi!', 'Ánimo', 'La próxima sale', 'No pasa nada'];
+// Perrito de cuerpo entero (calcado del personaje de referencia, en coordenadas de 192 px).
+// Entra aplastándose y estirándose, gira la cabeza hacia la pantalla y piensa:
+// al acertar saca la lengua y piensa en una ampolleta; al fallar se pone triste y piensa en una X.
+let perroN = 0;
 function perroSvg(ok) {
-  const L = 'stroke="#4a2c17" stroke-width="6" stroke-linejoin="round"';
-  const ojo = (cx, dy) => `<circle cx="${cx}" cy="80" r="21" fill="#fff" ${L}/><circle cx="${cx + 2}" cy="${82 + dy}" r="10.5" fill="#1d120b"/><circle cx="${cx + 5}" cy="${78 + dy}" r="3.6" fill="#fff"/>`;
+  const clip = `perro-clip-${++perroN}`;
+  const T = '#143a4b', NAR = '#ef9a48', NAR2 = '#f7c48f', CREMA = '#fdf7ea', CAFE = '#8f3a12', CAFE2 = '#a8441b';
+  const L = `stroke="${T}" stroke-width="4.6" stroke-linejoin="round" stroke-linecap="round"`;
+  const cabeza = 'M100 22C126 22 146 32 152 52C157 70 154 88 144 98C132 109 116 111 100 111C80 111 62 104 52 94C44 84 44 68 50 52C58 32 78 22 100 22Z';
   const cara = ok
-    ? `${ojo(68, 0)}
-       <g class="guino-abierto">${ojo(132, 0)}</g>
-       <path class="guino-cerrado" d="M113 84q19-18 38 0" fill="none" stroke="#4a2c17" stroke-width="7" stroke-linecap="round"/>
-       <path d="M70 116Q100 124 130 116Q128 172 100 172Q72 172 70 116Z" fill="#2b1a12" ${L}/>
-       <path class="lengua" d="M82 153Q100 140 118 153Q113 169 100 169Q87 169 82 153Z" fill="#ff7b9a"/>`
-    : `${ojo(68, 6)}${ojo(132, 6)}
-       <path d="M46 52l36-11M154 52l-36-11" stroke="#4a2c17" stroke-width="6" stroke-linecap="round"/>
-       <path class="boca-triste" d="M84 146q8-9 16-3t16 3" fill="none" stroke="#4a2c17" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-       <path class="lagrima" d="M147 100q-8 11 0 15t0-15z" fill="#6cc4ff" stroke="#4a2c17" stroke-width="3"/>
-       <path class="sudor" d="M160 30q-7 10 0 13t0-13z" fill="#bfe6ff" stroke="#4a2c17" stroke-width="3"/>`;
-  const patas = ok
-    ? `<ellipse cx="74" cy="186" rx="27" ry="19" fill="#c98a4b" ${L}/><path d="M64 176v9M74 174v10M84 176v9" stroke="#4a2c17" stroke-width="4" stroke-linecap="round"/>
-       <g class="pata-saludo"><rect x="144" y="128" width="38" height="86" rx="19" fill="#c98a4b" ${L}/><path d="M154 138v10M163 135v11M172 138v10" stroke="#4a2c17" stroke-width="4" stroke-linecap="round"/></g>
-       <path class="movimiento" d="M190 124q6 9 0 18M198 116q9 15 0 32" fill="none" stroke="#4a2c17" stroke-width="4" stroke-linecap="round"/>`
-    : `<g class="patas-nervio"><ellipse cx="84" cy="184" rx="24" ry="18" fill="#c98a4b" ${L}/><ellipse cx="116" cy="186" rx="24" ry="18" fill="#c98a4b" ${L}/>
-       <path d="M108 176v9M118 174v10M128 176v9" stroke="#4a2c17" stroke-width="4" stroke-linecap="round"/></g>`;
-  const foco = ok
-    ? `<g class="foco"><g class="rayos" stroke="#ffc83d" stroke-width="4" stroke-linecap="round"><path d="M172 4v-8M152 12l-6-6M192 12l6-6M146 30h-8M198 30h8"/></g>
-       <circle cx="172" cy="28" r="15" fill="#ffe14d" stroke="#4a2c17" stroke-width="4"/>
-       <path d="M167 32l5-7 5 7" fill="none" stroke="#c99a1c" stroke-width="2.5" stroke-linecap="round"/>
-       <rect x="165" y="41" width="14" height="10" rx="3" fill="#cfd3da" stroke="#4a2c17" stroke-width="4"/></g>`
-    : '';
-  return `<svg class="perro ${ok ? 'ok' : 'bad'}" viewBox="0 0 200 200" aria-hidden="true">
-    <g class="cuerpo">
-      <rect x="46" y="140" width="108" height="90" rx="40" fill="#c98a4b" ${L}/>
-      <g class="cabeza">
-        <g transform="rotate(26 26 104)"><ellipse class="oreja o-i" cx="26" cy="104" rx="22" ry="44" fill="#7a4a2b" ${L}/></g>
-        <g transform="rotate(-26 174 104)"><ellipse class="oreja o-d" cx="174" cy="104" rx="22" ry="44" fill="#7a4a2b" ${L}/></g>
-        <ellipse cx="100" cy="94" rx="74" ry="66" fill="#c98a4b" ${L}/>
-        <path d="M100 30c-9 0-13 16-11 34h22c2-18-2-34-11-34z" fill="#f3d2a6"/>
-        <ellipse cx="100" cy="114" rx="34" ry="24" fill="#f3d2a6"/>
-        <ellipse cx="46" cy="110" rx="10" ry="6" fill="#ff9aa8" opacity=".6"/>
-        <ellipse cx="154" cy="110" rx="10" ry="6" fill="#ff9aa8" opacity=".6"/>
-        <ellipse cx="100" cy="102" rx="13" ry="9" fill="#1d120b"/>
-        <ellipse cx="96" cy="99" rx="4" ry="2.2" fill="#fff" opacity=".7"/>
-        ${cara}
+    ? `<path d="M90 74.5C96 77 104 79 112 76C120 79 126 76 128.5 73C127 86 121 92 111 92C99 92 92 85 90 74.5Z" fill="${T}"/>
+       <path d="M112 68.5V76" stroke="${T}" stroke-width="3" stroke-linecap="round"/>
+       <circle cx="89" cy="72" r="2.6" fill="${T}"/><circle cx="128.5" cy="71" r="2.6" fill="${T}"/>
+       <g class="lengua"><path d="M99 87C95 98 99 115 112 115C124 115 130 102 127 87C118 91 106 91 99 87Z" fill="#f4545e"/>
+       <circle cx="110" cy="95" r="3.2" fill="#ffd3d6"/><circle cx="120" cy="92" r="3" fill="#ffd3d6"/><circle cx="109.6" cy="100.6" r="1.5" fill="#ffd3d6"/><circle cx="121" cy="100" r="1.5" fill="#ffd3d6"/></g>`
+    : `<path d="M76 44l11-6.5M134 42l-12-5.5" stroke="${CAFE}" stroke-width="3" stroke-linecap="round"/>
+       <path class="boca-triste" d="M99 86Q112 76 126 85" fill="none" stroke="${T}" stroke-width="4" stroke-linecap="round"/>
+       <path class="lagrima" d="M136 66q-5 8 0 10.5t0-10.5z" fill="#6cc4ff" stroke="${T}" stroke-width="2"/>`;
+  const cejas = ok ? `<path d="M80.5 40.5l3.8-1.9M122 36.5l4.2 1.6" stroke="${CAFE}" stroke-width="2.6" stroke-linecap="round"/>` : '';
+  const idea = ok
+    ? `<g class="rayos" stroke="#ffb800" stroke-width="2.6" stroke-linecap="round"><path d="M180 -42v-4M169 -38l-3-3M191 -38l3-3"/></g>
+       <circle cx="180" cy="-25" r="9" fill="#ffe14d" stroke="${T}" stroke-width="2.6"/>
+       <path d="M176.5 -23l3.5-4.5 3.5 4.5" fill="none" stroke="#c99a1c" stroke-width="1.8" stroke-linecap="round"/>
+       <rect x="175" y="-17" width="10" height="7" rx="2" fill="#cfd3da" stroke="${T}" stroke-width="2.6"/>`
+    : `<path class="equis" d="M172 -29l16 16M188 -29l-16 16" stroke="#e5484d" stroke-width="5.5" stroke-linecap="round"/>`;
+  const nube = [[166, -20, 13], [180, -31, 15], [194, -20, 13], [180, -10, 13]];
+  return `<svg class="perro ${ok ? 'ok' : 'bad'}" viewBox="0 -50 210 230" aria-hidden="true">
+    <defs><clipPath id="${clip}"><path d="${cabeza}"/></clipPath></defs>
+    <ellipse class="sombra" cx="89" cy="174.5" rx="70" ry="3.2" fill="#2fb4c2"/>
+    <g class="salto">
+      <g class="cuerpo">
+        <g class="cola"><path d="M50 163C39 158 33 150 36 139" fill="none" stroke="${T}" stroke-width="13" stroke-linecap="round"/>
+        <path d="M50 163C40 158 34 150 36.5 140" fill="none" stroke="${CAFE2}" stroke-width="5" stroke-linecap="round"/></g>
+        <path d="M81 108C72 116 64 128 57 141L84 175H137C138 158 136 138 132 124C131 118 130 113 128 108Z" fill="${NAR}" ${L}/>
+        <path d="M82 112C74 116 68 124 63 137C68 138 72 136 75 132C78 126 81 120 84 117Z" fill="${CAFE2}"/>
+        <path d="M88 112C96 118 112 120 126 113L126 120C112 124 98 124 88 120Z" fill="${NAR2}"/>
+        <path d="M91 121C99 117 117 115 125 119C127 134 122 148 110 149C98 149 91 137 91 121Z" fill="${CREMA}"/>
+        <path d="M68 136C79 136 87 146 87 158C87 166 85 172 84 175H56C50 170 49 162 50 154C51 144 58 136 68 136Z" fill="${NAR}" ${L}/>
+        <path d="M58 146C55 152 55 160 58 166" fill="none" stroke="${NAR2}" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+        <path d="M59 175C59 169 63 165 71 165C79 165 84 169 84 175Z" fill="${CREMA}" ${L}/>
+        <path d="M86 176V155C86 148 90 144 97 144H101C108 144 112 148 112 155V176" fill="${NAR}" ${L}/>
+        <path d="M112 176V153C112 146 116 142 123 142H127C134 142 138 146 138 153V176" fill="${NAR}" ${L}/>
+        <path d="M89 172C89 163 109 163 109 172Z" fill="${CREMA}"/><path d="M115 172C115 163 135 163 135 172Z" fill="${CREMA}"/>
+        <path d="M84 176H139" stroke="${T}" stroke-width="4.6" stroke-linecap="round"/>
       </g>
-      ${patas}
+      <g class="cabeza-pos"><g class="cabeza">
+        <g class="oreja-d"><path d="M138 30C152 29 164 42 166 58C167 68 163 74 157 74C153 70 150 58 146 46Z" fill="${CAFE}" ${L}/></g>
+        <path d="${cabeza}" fill="${CREMA}"/>
+        <g clip-path="url(#${clip})"><g class="cara">
+          <path d="M40 20H100C104 34 104 54 99 64C93 70 80 70 72 66C68 72 66 80 66 86H40Z" fill="${NAR}"/>
+          <path d="M40 84H66C68 94 74 104 86 112H40Z" fill="${NAR2}"/>
+          <path d="M114 38C120 32 136 31 146 36L160 44V72C146 72 132 70 124 66C116 62 112 50 114 38Z" fill="${NAR}"/>
+          <circle cx="70.4" cy="71" r="6.5" fill="#ff7b7b"/><circle cx="70.4" cy="69" r="2" fill="#fff" opacity=".85"/>
+          <circle cx="142.4" cy="66" r="6" fill="#ff7b7b"/><circle cx="142" cy="65" r="1.8" fill="#fff" opacity=".85"/>
+        </g></g>
+        <path d="${cabeza}" fill="none" ${L}/>
+        <g class="cara">
+          ${cejas}
+          <circle class="ojo" cx="86" cy="56" r="9" fill="${T}"/><circle cx="81.2" cy="51.6" r="3.2" fill="#fff"/><circle cx="86.4" cy="60" r="2" fill="#fff"/>
+          <circle class="ojo" cx="127" cy="55" r="8.6" fill="${T}"/><circle cx="124.4" cy="50" r="3" fill="#fff"/><circle cx="129.6" cy="58.6" r="2" fill="#fff"/>
+          <ellipse cx="112" cy="63" rx="9" ry="5.6" fill="${T}"/><ellipse cx="111" cy="60.5" rx="4" ry="1.7" fill="#fff" opacity=".8"/>
+          ${cara}
+        </g>
+        <g class="oreja-i"><path d="M62 30C44 30 28 44 24 62C22 74 30 82 40 81C52 80 62 70 65 54C66 44 65 36 62 30Z" fill="${CAFE}" ${L}/>
+        <circle cx="52.4" cy="53.6" r="2.5" fill="${NAR}"/></g>
+      </g></g>
     </g>
-    ${foco}
+    <g class="pensar">
+      <circle class="p1" cx="154" cy="16" r="3.2" fill="#fff" stroke="${T}" stroke-width="2.6"/>
+      <circle class="p2" cx="161" cy="3" r="5" fill="#fff" stroke="${T}" stroke-width="2.6"/>
+      <g class="nube">
+        ${nube.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r + 2.6}" fill="${T}"/>`).join('')}
+        ${nube.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff"/>`).join('')}
+        ${idea}
+      </g>
+    </g>
   </svg>`;
 }
 function mostrarPerro(ok) {
   $$('.perro-escena').forEach(e => e.remove());
-  const frases = ok ? FRASES_OK : FRASES_BAD;
   const escena = document.createElement('div');
   escena.className = `perro-escena ${ok ? 'ok' : 'bad'}`;
   escena.setAttribute('aria-hidden', 'true');
-  escena.innerHTML = `<div class="perro-globo">${frases[Math.floor(Math.random() * frases.length)]}</div>${perroSvg(ok)}`;
+  escena.innerHTML = perroSvg(ok);
   document.body.appendChild(escena);
-  setTimeout(() => escena.remove(), 3000);
+  setTimeout(() => escena.remove(), 3300);
 }
 
 const ICON_OK = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
