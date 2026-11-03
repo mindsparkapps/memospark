@@ -14,7 +14,8 @@
 // 2.0 Revisar mazo: lista paginada con imagen, pregunta y respuesta, veces vistas, % de acierto, Ver tarjeta y Probar
 // 2.1 estilo propio o de ZenBan (botón arriba y en la barra de la ventana de ZenBan), como TablaQuiz
 // 2.3 la pregunta completa se ve también al revisar la respuesta; cada sesión dura máx. 10 min (se pide otra para seguir)
-const APP_VERSION = '2.3';
+// 2.4 «Continuar» muestra el tiempo que falta de la sesión; «Sin ver» del mazo es un botón que estudia solo las tarjetas sin ver
+const APP_VERSION = '2.4';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -116,7 +117,7 @@ function guardarSesion() {
   // El repaso de las más falladas es aparte: no pisa la sesión a medias
   if (!study || readOnly || study.falladas) return;
   sesionGuardada = {
-    target: study.target, hechas: study.hechas, aciertos: study.aciertos, inicial: study.inicial,
+    target: study.target, soloNuevas: !!study.soloNuevas, ids: study.soloNuevas ? [...study.ids] : undefined, hechas: study.hechas, aciertos: study.aciertos, inicial: study.inicial,
     contador: study.contador, usado: study.usado || 0, actualId: study.actual && !study.actual.guardada ? study.actual.t.id : null, dia: SRS.dayKey(), ts: Date.now()
   };
   escribirSesion();
@@ -214,7 +215,7 @@ function renderMazos() {
   const pend = totalPendientes();
   // Sesión a medias (solo si aún queda algo por estudiar en ella)
   let sesion = sesionPendiente();
-  if (sesion) { const c = SRS.conteos(candidatos(sesion.target), Infinity); if (!c.nuevas && !c.aprend && !c.repaso) sesion = null; }
+  if (sesion) { const c = SRS.conteos(candSesion(sesion), Infinity); if (!c.nuevas && !c.aprend && !c.repaso) sesion = null; }
   $('#studyAllBtn').hidden = mazos.length < 2;
   $('#studyAllBtn').disabled = !pend;
   $('#hoyEyebrow').textContent = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -263,14 +264,14 @@ function renderMazos() {
         <div class="deck-foot">
           <button class="btn ghost sm" type="button" data-open="${esc(m.id)}">Ver mazo</button>
           <span class="grow"></span>
-          <button class="btn ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${hay ? '' : 'disabled'}>${hay ? (sesion && sesion.target === m.id ? 'Continuar ▶' : 'Estudiar') : 'Al día ✓'}</button>
+          <button class="btn ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${sesion && sesion.target === m.id && sesion.soloNuevas ? 'data-nuevas="1"' : ''} ${hay ? '' : 'disabled'}>${hay ? (sesion && sesion.target === m.id ? `Continuar ▶ · ${quedaTxt(sesion)}` : 'Estudiar') : 'Al día ✓'}</button>
         </div>
       </article>`;
   }).join('');
 
   $('#mazos-body').innerHTML = `
     ${sesion ? `<div class="resume">
-      <div class="grow"><b>Tienes una sesión a medias</b><span>${esc(sesion.target === '*' ? 'Todos los mazos' : S.mazos.get(sesion.target).nombre)} · ${sesion.hechas} ${sesion.hechas === 1 ? 'respondida' : 'respondidas'}${sesion.hechas ? ` · ${Math.round(sesion.aciertos / sesion.hechas * 100)}% de aciertos` : ''}</span></div>
+      <div class="grow"><b>Tienes una sesión a medias</b><span>${esc(sesion.target === '*' ? 'Todos los mazos' : S.mazos.get(sesion.target).nombre)} · ${sesion.hechas} ${sesion.hechas === 1 ? 'respondida' : 'respondidas'}${sesion.soloNuevas ? ' · sin ver' : ''}${sesion.hechas ? ` · ${Math.round(sesion.aciertos / sesion.hechas * 100)}% de aciertos` : ''} · ${quedaTxt(sesion)}</span></div>
       <button class="btn ghost sm" type="button" data-act="discard-session">Descartar</button>
       <button class="btn primary" type="button" data-act="resume">Continuar ▶</button>
     </div>` : ''}
@@ -650,10 +651,10 @@ function renderMazo() {
         <h2>${esc(m.nombre)}</h2>
         ${m.descripcion ? `<div class="md muted" style="margin-top:6px">${MazoMD.render(m.descripcion)}</div>` : ''}
       </div>
-      <button class="btn primary" type="button" data-study="${esc(m.id)}" ${hay ? '' : 'disabled'}>${hay ? `${(sesionPendiente() || {}).target === m.id ? 'Continuar ▶' : 'Estudiar'} (${hay})` : 'Al día ✓'}</button>
+      ${(() => { const sp = sesionPendiente(); const mia = sp && sp.target === m.id; return `<button class="btn primary" type="button" data-study="${esc(m.id)}" ${mia && sp.soloNuevas ? 'data-nuevas="1"' : ''} ${hay ? '' : 'disabled'}>${hay ? (mia ? `Continuar ▶ · ${quedaTxt(sp)}` : `Estudiar (${hay})`) : 'Al día ✓'}</button>`; })()}
     </div>
     <div class="today">
-      <div class="stat"><div class="v" style="color:var(--new)">${c.nuevasTotal}</div><div class="l">Sin ver</div></div>
+      <button class="stat stat-btn" type="button" data-study="${esc(m.id)}" data-nuevas="1" ${c.nuevasTotal ? '' : 'disabled'} title="Estudiar solo las tarjetas que aún no has visto"><div class="v" style="color:var(--new)">${c.nuevasTotal}</div><div class="l">Sin ver${c.nuevasTotal ? ' · estudiar ▶' : ''}</div></button>
       <div class="stat"><div class="v" style="color:var(--learn)">${c.aprend}</div><div class="l">Aprendiendo hoy</div></div>
       <div class="stat"><div class="v" style="color:var(--due)">${c.repaso}</div><div class="l">Para repasar hoy</div></div>
       <div class="stat"><div class="v">${tarjetas.length}</div><div class="l">Tarjetas</div></div>
@@ -892,37 +893,45 @@ async function cargarEjemplo() {
 /* ---------- Estudio ---------- */
 let study = null;
 
-function candidatos(target) {
+// solo: sesión «sin ver» (Set con los ids ya empezados en ella): entran todas las nuevas sin el tope diario,
+// más esas tarjetas mientras siguen en aprendizaje, y nada más.
+function candidatos(target, solo = null) {
   const mazos = target === '*' ? mazosOrdenados() : [S.mazos.get(target)].filter(Boolean);
   const out = [];
   mazos.forEach((m, mi) => {
     let libres = nuevasRestantes(m);
     tarjetasDe(m.id).forEach(t => {
       const p = progresoDe(t);
-      if (p.estado === 'nuevo') { if (libres <= 0) return; libres--; }
+      if (solo) { if (p.estado !== 'nuevo' && !solo.has(t.id)) return; }
+      else if (p.estado === 'nuevo') { if (libres <= 0) return; libres--; }
       out.push({ ...p, orden: mi * 100000 + t.orden });
     });
   });
   return out;
 }
+// Tarjetas de una sesión en curso o guardada (normal o «sin ver»)
+const candSesion = (s) => candidatos(s.target, s.soloNuevas ? new Set(s.ids || []) : null);
+// Tiempo que le queda a una sesión de 10 min
+const quedaTxt = (s) => `quedan ${Math.max(1, Math.ceil((SESION_MAX_MS - (s.usado || 0)) / 60000))} min`;
 
 const modosDe = (m) => (m && Array.isArray(m.modos) && m.modos.length > 1 ? m.modos : []);
 const modoDe = (mazoId) => { const m = S.mazos.get(mazoId); return modosDe(m).length ? Math.min(m.modo || 0, m.modos.length - 1) : 0; };
 
 // Antes de estudiar un mazo con varios tipos de respuesta se elige cuál usar (queda recordado en el mazo)
-function startStudy(target, { elegido = false } = {}) {
-  const lista = candidatos(target);
-  const c = SRS.conteos(lista, Infinity);
-  if (!c.nuevas && !c.aprend && !c.repaso) { borrarSesion(); toast('No hay tarjetas para estudiar ahora'); return; }
-  // Si hay una sesión a medias de este mismo mazo, se retoma (con su tipo de respuesta ya elegido)
+function startStudy(target, { elegido = false, soloNuevas = false, ids = null } = {}) {
+  // Si hay una sesión a medias de este mismo mazo (y del mismo tipo), se retoma (con su tipo de respuesta ya elegido)
   const previa = sesionPendiente();
-  const reanudar = previa && previa.target === target ? previa : null;
+  const reanudar = previa && previa.target === target && !!previa.soloNuevas === !!soloNuevas ? previa : null;
+  const idsSolo = soloNuevas ? new Set(reanudar ? reanudar.ids || [] : ids || []) : null;
+  const lista = candidatos(target, idsSolo);
+  const c = SRS.conteos(lista, Infinity);
+  if (!c.nuevas && !c.aprend && !c.repaso) { if (!soloNuevas) borrarSesion(); toast(soloNuevas ? 'No quedan tarjetas sin ver' : 'No hay tarjetas para estudiar ahora'); return; }
   const m = target !== '*' && S.mazos.get(target);
-  if (m && modosDe(m).length && !elegido && !reanudar) { elegirModo(m); return; }
+  if (m && modosDe(m).length && !elegido && !reanudar) { elegirModo(m, soloNuevas); return; }
   if (!reanudar) borrarSesion();
-  study = { target, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, usado: 0, inicial: c.nuevas + c.aprend + c.repaso, actual: null, espera: null };
+  study = { target, soloNuevas, ids: idsSolo, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, usado: 0, inicial: c.nuevas + c.aprend + c.repaso, actual: null, espera: null };
   if (reanudar) Object.assign(study, { usado: reanudar.usado || 0, hechas: reanudar.hechas, aciertos: reanudar.aciertos, contador: reanudar.contador, inicial: Math.max(reanudar.inicial, reanudar.hechas + c.nuevas + c.aprend + c.repaso) });
-  $('#studyTitle').textContent = target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || '';
+  $('#studyTitle').textContent = (target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || '') + (soloNuevas ? ' · Sin ver' : '');
   go('estudio');
   // Primero la misma tarjeta que estaba en pantalla al salir, si todavía toca
   const pend = reanudar && reanudar.actualId && lista.find(p => p.id === reanudar.actualId);
@@ -938,7 +947,7 @@ function salirDelEstudio() {
   else if (study && study.target !== '*') go('mazo', { mazo: study.target }); else go('mazos');
 }
 
-function elegirModo(m) {
+function elegirModo(m, soloNuevas = false) {
   const actual = modoDe(m.id);
   $('#modoMazo').textContent = m.nombre;
   $('#modoOpciones').innerHTML = m.modos.map((txt, i) => `
@@ -947,7 +956,7 @@ function elegirModo(m) {
     const sel = +(($('input[name="modoResp"]:checked') || {}).value || 0);
     $('#dlg-modo').close();
     if (sel !== (m.modo || 0)) await save('mazos', [{ ...m, modo: sel }]);
-    startStudy(m.id, { elegido: true });
+    startStudy(m.id, { elegido: true, soloNuevas });
   };
   $('#dlg-modo').showModal();
 }
@@ -969,8 +978,8 @@ function renderCounts(tipoActual) {
     $('#studyBar').style.width = `${Math.min(100, (study.hechas / Math.max(1, study.hechas + quedan)) * 100)}%`;
     return;
   }
-  const c = SRS.conteos(candidatos(study.target), Infinity);
-  const on = (t) => tipoActual === t ? ' data-on' : '';
+  const c = SRS.conteos(candSesion(study), Infinity);
+  const on =(t) => tipoActual === t ? ' data-on' : '';
   $('#studyCounts').innerHTML = `<span class="n" title="Nuevas"${on('nuevo')}>${c.nuevas}</span><span class="a" title="Aprendiendo"${on('aprendiendo')}>${c.aprend}</span><span class="r" title="Repaso"${on('repaso')}>${c.repaso}</span>`;
   const quedan = c.nuevas + c.aprend + c.repaso;
   const base = Math.max(study.inicial, study.hechas + quedan, 1);
@@ -1038,7 +1047,7 @@ function nextCard() {
     return renderFin();
   }
   if (study.usado >= SESION_MAX_MS) return renderBloque();
-  const sig = SRS.siguiente(candidatos(study.target), { nuevasRestantes: Infinity, repasosRestantes: Infinity, ultimaId: study.ultimaId, contador: study.contador });
+  const sig = SRS.siguiente(candSesion(study), { nuevasRestantes: Infinity, repasosRestantes: Infinity, ultimaId: study.ultimaId, contador: study.contador });
   if (!sig || sig.espera) { renderFin(sig && sig.espera); return; }
   const t = S.tarjetas.get(sig.p.id);
   if (!t) { study.ultimaId = sig.p.id; return renderFin(); }
@@ -1046,6 +1055,7 @@ function nextCard() {
 }
 
 function mostrarTarjeta(t, tipo) {
+  if (study.soloNuevas) study.ids.add(t.id);
   // version: tipo de respuesta elegido para el mazo (cada alternativa trae «corta || larga»)
   const version = modoDe(t.mazoId);
   const opciones = t.opciones && t.opciones.length ? shuffle(t.opciones.map(o => ({ t: MazoMD.variante(o.t, version), ok: o.ok }))) : [];
@@ -1409,7 +1419,7 @@ function renderFin(espera) {
 // Cada sesión dura como máximo 10 minutos; para seguir se pide otra
 function renderBloque() {
   const pct = study.hechas ? Math.round(study.aciertos / study.hechas * 100) : 0;
-  const c = SRS.conteos(candidatos(study.target), Infinity);
+  const c = SRS.conteos(candSesion(study), Infinity);
   const quedan = c.nuevas + c.aprend + c.repaso;
   renderCounts(null);
   study.terminada = true;
@@ -1421,7 +1431,7 @@ function renderBloque() {
 
 // Estudiar ya las tarjetas en aprendizaje aunque no les toque todavía
 function estudiarAdelantado() {
-  const lista = candidatos(study.target).filter(SRS.enAprendizaje).sort((a, b) => a.vence - b.vence);
+  const lista = candSesion(study).filter(SRS.enAprendizaje).sort((a, b) => a.vence - b.vence);
   if (!lista.length) return nextCard();
   clearTimeout(study.espera);
   mostrarTarjeta(S.tarjetas.get(lista[0].id), 'aprendiendo');
@@ -1487,7 +1497,7 @@ document.addEventListener('click', (e) => {
   const fa = e.target.closest('[data-falladas]');
   if (fa) { repasarFalladas(fa.dataset.falladas); return; }
   const st = e.target.closest('[data-study]');
-  if (st) { startStudy(st.dataset.study); return; }
+  if (st) { startStudy(st.dataset.study, { soloNuevas: !!st.dataset.nuevas }); return; }
   const opt = e.target.closest('[data-opt]');
   if (opt) { elegirOpcion(+opt.dataset.opt); return; }
   const im = e.target.closest('[data-imode]');
@@ -1502,10 +1512,10 @@ document.addEventListener('click', (e) => {
     case 'load-example': cargarEjemplo(); break;
     case 'study-all': startStudy('*'); break;
     case 'end-study': salirDelEstudio(); break;
-    case 'resume': { const s = sesionPendiente(); if (s) startStudy(s.target, { elegido: true }); break; }
+    case 'resume': { const s = sesionPendiente(); if (s) startStudy(s.target, { elegido: true, soloNuevas: !!s.soloNuevas }); break; }
     case 'discard-session': borrarSesion(); toast('Sesión descartada: lo respondido ya quedó guardado'); render(); break;
     case 'study-ahead': estudiarAdelantado(); break;
-    case 'more-study': { const t = study.target; const v = study.volverA; study = null; startStudy(t, { elegido: true }); if (study) study.volverA = v; break; }
+    case 'more-study': { const t = study.target; const v = study.volverA; const o = { elegido: true, soloNuevas: !!study.soloNuevas, ids: study.ids }; study = null; startStudy(t, o); if (study) study.volverA = v; break; }
     case 'check': evaluar(); break;
     case 'dont-know': evaluar(true); break;
     case 'continue': continuar(); break;
