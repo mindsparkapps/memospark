@@ -468,3 +468,7 @@ body.in-zenban header.top{position:static}
   .app-version{display:none}
   h2{font-size:1.45rem}
 }
+.modo-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}
+.modo-row .grow{flex:1 1 180px;min-width:0}
+.modo-row b{display:block}
+.modo-row span{font-size:.82rem;color:var(--muted)}

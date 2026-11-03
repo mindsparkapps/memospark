@@ -16,7 +16,8 @@
 // 2.3 la pregunta completa se ve también al revisar la respuesta; cada sesión dura máx. 10 min (se pide otra para seguir)
 // 2.4 «Continuar» muestra el tiempo que falta de la sesión; «Sin ver» del mazo es un botón que estudia solo las tarjetas sin ver
 // 2.5 tiempo restante en un marco verde; el botón atrás del celular vuelve a la vista anterior; cada tipo de respuesta lleva su propio progreso y meta diaria
-const APP_VERSION = '2.5';
+// 2.6 en el mazo, cada tipo de respuesta tiene su botón Estudiar/Continuar y «Practicar de nuevo» (también si ya está al día)
+const APP_VERSION = '2.6';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -119,6 +120,7 @@ function guardarSesion() {
   if (!study || readOnly || study.falladas) return;
   sesionGuardada = {
     target: study.target, soloNuevas: !!study.soloNuevas, ids: study.soloNuevas ? [...study.ids] : undefined, hechas: study.hechas, aciertos: study.aciertos, inicial: study.inicial,
+    modo: study.target !== '*' ? modoDe(study.target) : undefined,
     contador: study.contador, usado: study.usado || 0, actualId: study.actual && !study.actual.guardada ? study.actual.t.id : null, dia: SRS.dayKey(), ts: Date.now()
   };
   escribirSesion();
@@ -284,7 +286,7 @@ function renderMazos() {
         <div class="deck-foot">
           <button class="btn ghost sm" type="button" data-open="${esc(m.id)}">Ver mazo</button>
           <span class="grow"></span>
-          <button class="btn ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${sesion && sesion.target === m.id && sesion.soloNuevas ? 'data-nuevas="1"' : ''} ${hay ? '' : 'disabled'}>${hay ? (sesion && sesion.target === m.id ? `Continuar ▶ · ${quedaTxt(sesion)}` : 'Estudiar') : 'Al día ✓'}</button>
+          <button class="btn ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${sesion && sesion.target === m.id && sesion.soloNuevas ? 'data-nuevas="1"' : ''} ${sesion && sesion.target === m.id && sesion.modo != null ? `data-modo="${sesion.modo}"` : ''} ${hay ? '' : 'disabled'}>${hay ? (sesion && sesion.target === m.id ? `Continuar ▶ · ${quedaTxt(sesion)}` : 'Estudiar') : 'Al día ✓'}</button>
         </div>
       </article>`;
   }).join('');
@@ -672,7 +674,7 @@ function renderMazo() {
         <h2>${esc(m.nombre)}</h2>
         ${m.descripcion ? `<div class="md muted" style="margin-top:6px">${MazoMD.render(m.descripcion)}</div>` : ''}
       </div>
-      ${(() => { const sp = sesionPendiente(); const mia = sp && sp.target === m.id; return `<button class="btn primary" type="button" data-study="${esc(m.id)}" ${mia && sp.soloNuevas ? 'data-nuevas="1"' : ''} ${hay ? '' : 'disabled'}>${hay ? (mia ? `Continuar ▶ · ${quedaTxt(sp)}` : hayAqui ? `Estudiar (${hayAqui})` : 'Estudiar otro tipo') : 'Al día ✓'}</button>`; })()}
+      ${(() => { const sp = sesionPendiente(); const mia = sp && sp.target === m.id; return `<button class="btn primary" type="button" data-study="${esc(m.id)}" ${mia && sp.soloNuevas ? 'data-nuevas="1"' : ''} ${mia && sp.modo != null ? `data-modo="${sp.modo}"` : ''} ${hay ? '' : 'disabled'}>${hay ? (mia ? `Continuar ▶ · ${quedaTxt(sp)}` : hayAqui ? `Estudiar (${hayAqui})` : 'Estudiar otro tipo') : 'Al día ✓'}</button>`; })()}
     </div>
     <div class="today">
       <button class="stat stat-btn" type="button" data-study="${esc(m.id)}" data-nuevas="1" ${c.nuevasTotal ? '' : 'disabled'} title="Estudiar solo las tarjetas que aún no has visto"><div class="v" style="color:var(--new)">${c.nuevasTotal}</div><div class="l">Sin ver${c.nuevasTotal ? ' · estudiar ▶' : ''}</div></button>
@@ -680,6 +682,17 @@ function renderMazo() {
       <div class="stat"><div class="v" style="color:var(--due)">${c.repaso}</div><div class="l">Para repasar hoy</div></div>
       <div class="stat"><div class="v">${tarjetas.length}</div><div class="l">Tarjetas</div></div>
     </div>
+    ${modosDe(m).length ? `<div class="card">
+      <b>Tipos de respuesta</b>
+      <p class="muted" style="font-size:.8rem;margin:2px 0 8px">Cada tipo lleva su propio progreso y su meta diaria: puedes estudiarlos en paralelo y practicar de nuevo uno que ya está al día.</p>
+      ${(() => { const sp = sesionPendiente(); return m.modos.map((txt, i) => {
+        const cc = conteosMazo(m, i); const n = cc.nuevas + cc.aprend + cc.repaso;
+        const cont = sp && sp.target === m.id && !sp.soloNuevas && sp.modo === i;
+        return `<div class="modo-row"><div class="grow"><b>${esc(txt)}</b><span>${n ? `${n} para hoy` : 'Al día ✓'}</span></div>
+          <button class="btn sm" type="button" data-practica="${i}" ${tarjetas.length ? '' : 'disabled'}>Practicar de nuevo</button>
+          <button class="btn primary sm" type="button" data-estudiar-modo="${i}" ${n || cont ? '' : 'disabled'}>${cont ? `Continuar ▶ · ${quedaTxt(sp)}` : 'Estudiar'}</button></div>`;
+      }).join(''); })()}
+    </div>` : ''}
     <div class="card">
       <div class="frow" style="align-items:end">
         <label class="f">Tarjetas nuevas por día<input type="number" id="nuevasPorDia" min="0" max="500" value="${m.nuevasPorDia ?? 20}" ${readOnly ? 'disabled' : ''}></label>
@@ -942,8 +955,9 @@ const modoDe = (mazoId) => { const m = S.mazos.get(mazoId); return modosDe(m).le
 function startStudy(target, { elegido = false, soloNuevas = false, ids = null } = {}) {
   // Si hay una sesión a medias de este mismo mazo (y del mismo tipo), se retoma (con su tipo de respuesta ya elegido)
   const previa = sesionPendiente();
-  const reanudar = previa && previa.target === target && !!previa.soloNuevas === !!soloNuevas ? previa : null;
   const m = target !== '*' && S.mazos.get(target);
+  // Una sesión a medias solo se retoma en el mismo tipo de respuesta con que se empezó
+  const reanudar = previa && previa.target === target && !!previa.soloNuevas === !!soloNuevas && (!m || previa.modo == null || previa.modo === modoDe(target)) ? previa : null;
   // Cada tipo de respuesta tiene su propio progreso y meta diaria: se elige uno que aún tenga tarjetas para hoy
   if (m && modosDe(m).length && !elegido && !reanudar) {
     if (pendientesPorModo(m).some(n => n > 0)) elegirModo(m, soloNuevas); else toast('No hay tarjetas para estudiar ahora');
@@ -1067,6 +1081,7 @@ function nextCard() {
   if (!study) return;
   clearTimeout(study.espera);
   if (study.falladas) {
+    if (study.tipoAparte === 'extra' && study.usado >= SESION_MAX_MS && study.cola.length) return renderBloqueExtra();
     while (study.cola.length) {
       const t = S.tarjetas.get(study.cola.shift());
       if (t) return mostrarTarjeta(t, study.tipoAparte);
@@ -1160,7 +1175,7 @@ function mostrarSello(ok) {
 const ICON_OK = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_BAD = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m8 8 8 8m0-8-8 8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
 const LETRAS = 'ABCDEFGHIJ';
-const TIPO_TXT = { nuevo: 'Nueva', aprendiendo: 'Aprendiendo', repaso: 'Repaso', falladas: 'De las más falladas', prueba: 'Prueba' };
+const TIPO_TXT = { nuevo: 'Nueva', aprendiendo: 'Aprendiendo', repaso: 'Repaso', falladas: 'De las más falladas', prueba: 'Prueba', extra: 'Práctica' };
 
 function renderCard() {
   const a = study.actual;
@@ -1443,6 +1458,28 @@ function renderFin(espera) {
   $('#studyBar').style.width = '100%';
 }
 
+// Práctica libre de un tipo de respuesta (también con el tipo ya al día): mismo tope de 10 min por sesión
+function renderBloqueExtra() {
+  const pct = study.hechas ? Math.round(study.aciertos / study.hechas * 100) : 0;
+  $('#studyBar').style.width = `${Math.min(100, study.hechas / Math.max(1, study.hechas + study.cola.length) * 100)}%`;
+  $('#studyStage').innerHTML = `<div class="card done"><div class="big">⏱️</div><h3>¡Sesión de ${SESION_MAX_MS / 60000} minutos lista!</h3><p class="muted">${study.hechas} tarjetas respondidas · ${pct}% de aciertos. Lo que respondiste ya quedó guardado.</p><div class="toolbar"><button class="btn" type="button" data-act="end-study">Terminar</button><button class="btn primary" type="button" data-act="more-extra">Otros ${SESION_MAX_MS / 60000} min</button></div></div>`;
+}
+
+// Deja el mazo en el tipo de respuesta con que se empezó una sesión a medias (para poder retomarla)
+async function fijarModo(id, v) {
+  const m = S.mazos.get(id);
+  if (m && v != null && (m.modo || 0) !== v) await save('mazos', [{ ...m, modo: v }]);
+}
+
+// Practicar de nuevo un tipo de respuesta del mazo, aunque ya esté al día (las respuestas cuentan en su repetición espaciada)
+async function estudiarModo(i, practica) {
+  const m = S.mazos.get(mazoAbierto);
+  if (!m) return;
+  if ((m.modo || 0) !== i) await save('mazos', [{ ...m, modo: i }]);
+  if (practica) sesionAparte(m.id, shuffle(tarjetasDe(m.id).map(t => t.id)), 'extra', 'Práctica');
+  else startStudy(m.id, { elegido: true });
+}
+
 // Cada sesión dura como máximo 10 minutos; para seguir se pide otra
 function renderBloque() {
   const pct = study.hechas ? Math.round(study.aciertos / study.hechas * 100) : 0;
@@ -1523,8 +1560,16 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#verNext') && verIdx < REV.ids.length - 1) { verTarjeta(REV.ids[verIdx + 1]); return; }
   const fa = e.target.closest('[data-falladas]');
   if (fa) { repasarFalladas(fa.dataset.falladas); return; }
+  const em = e.target.closest('[data-estudiar-modo]');
+  if (em) { estudiarModo(+em.dataset.estudiarModo, false); return; }
+  const pm = e.target.closest('[data-practica]');
+  if (pm) { estudiarModo(+pm.dataset.practica, true); return; }
   const st = e.target.closest('[data-study]');
-  if (st) { startStudy(st.dataset.study, { soloNuevas: !!st.dataset.nuevas }); return; }
+  if (st) {
+    const md = st.dataset.modo;
+    fijarModo(st.dataset.study, md === undefined ? null : +md).then(() => startStudy(st.dataset.study, { soloNuevas: !!st.dataset.nuevas }));
+    return;
+  }
   const opt = e.target.closest('[data-opt]');
   if (opt) { elegirOpcion(+opt.dataset.opt); return; }
   const im = e.target.closest('[data-imode]');
@@ -1539,9 +1584,10 @@ document.addEventListener('click', (e) => {
     case 'load-example': cargarEjemplo(); break;
     case 'study-all': startStudy('*'); break;
     case 'end-study': salirDelEstudio(); break;
-    case 'resume': { const s = sesionPendiente(); if (s) startStudy(s.target, { elegido: true, soloNuevas: !!s.soloNuevas }); break; }
+    case 'resume': { const s = sesionPendiente(); if (s) fijarModo(s.target, s.modo == null ? null : s.modo).then(() => startStudy(s.target, { elegido: true, soloNuevas: !!s.soloNuevas })); break; }
     case 'discard-session': borrarSesion(); toast('Sesión descartada: lo respondido ya quedó guardado'); render(); break;
     case 'study-ahead': estudiarAdelantado(); break;
+    case 'more-extra': study.usado = 0; study.terminada = false; nextCard(); break;
     case 'more-study': { const t = study.target; const v = study.volverA; const o = { elegido: true, soloNuevas: !!study.soloNuevas, ids: study.ids }; study = null; startStudy(t, o); if (study) study.volverA = v; break; }
     case 'check': evaluar(); break;
     case 'dont-know': evaluar(true); break;
@@ -1594,7 +1640,7 @@ document.addEventListener('keydown', (e) => {
   const inInput = !!(e.target.matches && e.target.matches('input, textarea'));
   const a = study.actual;
   if (!a) {
-    if ((e.key === ' ' || e.key === 'Enter') && !inInput) { const b = $('#studyStage [data-act="end-study"]'); if (b && !$('#studyStage [data-act="study-ahead"], #studyStage [data-act="more-study"]')) { e.preventDefault(); b.click(); } }
+    if ((e.key === ' ' || e.key === 'Enter') && !inInput) { const b = $('#studyStage [data-act="end-study"]'); if (b && !$('#studyStage [data-act="study-ahead"], #studyStage [data-act="more-study"], #studyStage [data-act="more-extra"]')) { e.preventDefault(); b.click(); } }
     return;
   }
   if (!a.resultado) {
