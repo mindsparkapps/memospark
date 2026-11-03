@@ -186,29 +186,11 @@ pre.prompt{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(-
 @keyframes sello-temblor{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(9px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
 @keyframes sello-fuera{to{opacity:0;transform:scale(1.08)}}
 @media (prefers-reduced-motion:reduce){.sello svg,.sello.bad svg{animation:none}.sello .trazo{animation:none;stroke-dashoffset:0}}
-/* Mascota: perrito en el veredicto; guiña el ojo al acertar y baja las orejas al fallar */
-.mascota{width:60px;height:60px;margin:-8px 0 -8px auto;flex:none;overflow:visible;transform-origin:50% 100%;animation:masc-pop .55s cubic-bezier(.2,1.6,.4,1) both}
-.mascota.ok{animation:masc-pop .55s cubic-bezier(.2,1.6,.4,1) both,masc-salto .5s ease-in-out .6s 2}
-.mascota.bad{animation:masc-pop .55s cubic-bezier(.2,1.6,.4,1) both,masc-triste 1.2s ease-in-out .6s}
-.mascota .oreja{transform-box:fill-box;transform-origin:50% 0}
-.mascota.ok .o-i{animation:masc-oreja-i .45s ease-in-out .6s 2}
-.mascota.ok .o-d{animation:masc-oreja-d .45s ease-in-out .6s 2}
-.mascota.bad .o-i{transform:rotate(18deg) translateY(4px)}
-.mascota.bad .o-d{transform:rotate(-18deg) translateY(4px)}
-.mascota .guino-cerrado{opacity:0;animation:masc-on .01s .55s forwards}
-.mascota .guino-abierto{animation:masc-off .01s .55s forwards}
-.mascota .chispa{opacity:0;transform-box:fill-box;transform-origin:50% 50%;animation:masc-chispa .8s ease-out .55s}
-.mascota .lagrima{opacity:0;animation:masc-lagrima 1s ease-in .7s forwards}
-@keyframes masc-pop{from{transform:scale(.2) translateY(14px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
-@keyframes masc-salto{0%,100%{transform:translateY(0)}45%{transform:translateY(-9px) rotate(-6deg)}}
-@keyframes masc-triste{0%,100%{transform:rotate(0)}30%{transform:rotate(-8deg)}60%{transform:rotate(6deg)}}
 @keyframes masc-oreja-i{50%{transform:rotate(-14deg)}}
 @keyframes masc-oreja-d{50%{transform:rotate(14deg)}}
 @keyframes masc-on{to{opacity:1}}
 @keyframes masc-off{to{opacity:0}}
-@keyframes masc-chispa{0%{opacity:0;transform:scale(0) rotate(0)}40%{opacity:1;transform:scale(1.4) rotate(20deg)}100%{opacity:0;transform:scale(.6) rotate(40deg)}}
 @keyframes masc-lagrima{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:.9;transform:translateY(14px)}}
-@media (prefers-reduced-motion:reduce){.mascota,.mascota *{animation:none!important}.mascota .guino-cerrado{opacity:1}.mascota .guino-abierto{opacity:0}.mascota .chispa{opacity:1}.mascota .lagrima{opacity:.9}}
 /* Perrito estilo pegatina: asoma desde el borde de abajo a la izquierda, actúa ~2 s y baja */
 .perro-escena{position:fixed;left:max(10px,env(safe-area-inset-left,0px));bottom:0;z-index:60;width:clamp(140px,26vw,200px);pointer-events:none;display:grid;justify-items:center;animation:perro-entra .45s cubic-bezier(.2,1.5,.4,1) both,perro-sale .45s ease-in 2.45s forwards}
 .perro-escena .perro{width:100%;height:auto;overflow:visible;display:block}

@@ -23,7 +23,8 @@
 // 3.3 mascota: un perrito que guiña el ojo al acertar y se pone triste al fallar
 // 3.4 perrito de cuerpo completo que sube desde abajo, celebra o se entristece y dice una frase
 // 3.5 el perrito pasa a estilo pegatina: contorno grueso, primer plano, boca abierta, saludo y ampolleta de idea
-const APP_VERSION = '3.5';
+// 3.6 se quita la cabecita del perrito del veredicto; queda solo el perrito grande
+const APP_VERSION = '3.6';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -1305,29 +1306,6 @@ function mostrarPerro(ok) {
   setTimeout(() => escena.remove(), 3000);
 }
 
-// Perrito mascota: guiña el ojo al acertar, se entristece al fallar (la animación vive en el CSS)
-function mascotaSvg(ok) {
-  const cara = ok
-    ? `<g class="guino-abierto"><circle cx="62" cy="46" r="6" fill="#fff"/><circle cx="63" cy="47" r="3.2" fill="#2b1d16"/></g>
-       <path class="guino-cerrado" d="M56 47q6-7 12 0" fill="none" stroke="#2b1d16" stroke-width="3.6" stroke-linecap="round"/>
-       <path class="chispa" d="M76 33l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#ffc83d"/>
-       <path d="M41 68q9 9 18 0z" fill="#fff" stroke="#2b1d16" stroke-width="2.4" stroke-linejoin="round"/>
-       <path d="M46 71q4 8 8 0z" fill="#ff7b8f"/>`
-    : `<circle cx="62" cy="47" r="6" fill="#fff"/><circle cx="62" cy="49" r="3.2" fill="#2b1d16"/>
-       <path d="M31 38l12 4M69 42l12-4" stroke="#2b1d16" stroke-width="3" stroke-linecap="round"/>
-       <path class="lagrima" d="M65 56q-4 6 0 8t0-8z" fill="#6cc4ff"/>
-       <path d="M42 72q8-7 16 0" fill="none" stroke="#2b1d16" stroke-width="2.6" stroke-linecap="round"/>`;
-  return `<svg class="mascota ${ok ? 'ok' : 'bad'}" viewBox="0 0 100 100" aria-hidden="true">
-    <ellipse class="oreja o-i" cx="22" cy="42" rx="11" ry="22" fill="#7a4a2b"/>
-    <ellipse class="oreja o-d" cx="78" cy="42" rx="11" ry="22" fill="#7a4a2b"/>
-    <ellipse cx="50" cy="55" rx="30" ry="29" fill="#e9b872"/>
-    <ellipse cx="50" cy="66" rx="17" ry="13" fill="#fbe9cf"/>
-    <ellipse cx="50" cy="59" rx="6.5" ry="4.8" fill="#2b1d16"/>
-    <g><circle cx="38" cy="46" r="6" fill="#fff"/><circle cx="37" cy="${ok ? 47 : 49}" r="3.2" fill="#2b1d16"/></g>
-    ${cara}
-  </svg>`;
-}
-
 const ICON_OK = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_BAD = '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="m8 8 8 8m0-8-8 8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
 const LETRAS = 'ABCDEFGHIJ';
@@ -1443,7 +1421,7 @@ function renderBack() {
   const a = study.actual;
   const { t, p } = a;
   let verdict, cuerpo;
-  verdict = a.resultado === 'ok' ? `<div class="verdict ok">${ICON_OK}<span>¡Correcto!</span>${mascotaSvg(true)}</div>` : `<div class="verdict bad">${ICON_BAD}<span>${a.modo === 'libre' && !a.escrita ? 'Para la próxima' : 'Incorrecto'}</span>${mascotaSvg(false)}</div>`;
+  verdict = a.resultado === 'ok' ? `<div class="verdict ok">${ICON_OK}<span>¡Correcto!</span></div>` : `<div class="verdict bad">${ICON_BAD}<span>${a.modo === 'libre' && !a.escrita ? 'Para la próxima' : 'Incorrecto'}</span></div>`;
   if (a.modo === 'libre') {
     cuerpo = `${a.escrita ? `<div class="answer-box"><div class="l">Tu respuesta</div>${esc(a.escrita)}</div>` : ''}
       <div class="answer-box"><div class="l">Respuesta</div><div class="md" style="font-size:1.15rem;font-weight:600">${MazoMD.render(MazoMD.variante(t.respuesta, a.version))}</div></div>`;
