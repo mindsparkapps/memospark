@@ -13,7 +13,8 @@
 // 1.9 tarjetas más falladas en Estadísticas y repaso aparte de ellas (cuenta para la repetición espaciada)
 // 2.0 Revisar mazo: lista paginada con imagen, pregunta y respuesta, veces vistas, % de acierto, Ver tarjeta y Probar
 // 2.1 estilo propio o de ZenBan (botón arriba y en la barra de la ventana de ZenBan), como TablaQuiz
-const APP_VERSION = '2.2';
+// 2.3 la pregunta completa se ve también al revisar la respuesta; cada sesión dura máx. 10 min (se pide otra para seguir)
+const APP_VERSION = '2.3';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -95,6 +96,7 @@ function pluginSnapshot() {
 // { target, hechas, aciertos, inicial, contador, actualId, dia, ts }. Se guarda en este dispositivo
 // (dentro de ZenBan, en el objeto del lienzo) y vale solo para el día de estudio en que se empezó.
 const SESION_KEY = 'memospark_sesion';
+const SESION_MAX_MS = 10 * 60 * 1000;
 let sesionGuardada = null;
 try { sesionGuardada = JSON.parse(localStorage.getItem(SESION_KEY) || 'null'); } catch (e) {}
 
@@ -115,7 +117,7 @@ function guardarSesion() {
   if (!study || readOnly || study.falladas) return;
   sesionGuardada = {
     target: study.target, hechas: study.hechas, aciertos: study.aciertos, inicial: study.inicial,
-    contador: study.contador, actualId: study.actual && !study.actual.guardada ? study.actual.t.id : null, dia: SRS.dayKey(), ts: Date.now()
+    contador: study.contador, usado: study.usado || 0, actualId: study.actual && !study.actual.guardada ? study.actual.t.id : null, dia: SRS.dayKey(), ts: Date.now()
   };
   escribirSesion();
 }
@@ -918,8 +920,8 @@ function startStudy(target, { elegido = false } = {}) {
   const m = target !== '*' && S.mazos.get(target);
   if (m && modosDe(m).length && !elegido && !reanudar) { elegirModo(m); return; }
   if (!reanudar) borrarSesion();
-  study = { target, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, inicial: c.nuevas + c.aprend + c.repaso, actual: null, espera: null };
-  if (reanudar) Object.assign(study, { hechas: reanudar.hechas, aciertos: reanudar.aciertos, contador: reanudar.contador, inicial: Math.max(reanudar.inicial, reanudar.hechas + c.nuevas + c.aprend + c.repaso) });
+  study = { target, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, usado: 0, inicial: c.nuevas + c.aprend + c.repaso, actual: null, espera: null };
+  if (reanudar) Object.assign(study, { usado: reanudar.usado || 0, hechas: reanudar.hechas, aciertos: reanudar.aciertos, contador: reanudar.contador, inicial: Math.max(reanudar.inicial, reanudar.hechas + c.nuevas + c.aprend + c.repaso) });
   $('#studyTitle').textContent = target === '*' ? 'Todos los mazos' : (S.mazos.get(target) || {}).nombre || '';
   go('estudio');
   // Primero la misma tarjeta que estaba en pantalla al salir, si todavía toca
@@ -1035,6 +1037,7 @@ function nextCard() {
     }
     return renderFin();
   }
+  if (study.usado >= SESION_MAX_MS) return renderBloque();
   const sig = SRS.siguiente(candidatos(study.target), { nuevasRestantes: Infinity, repasosRestantes: Infinity, ultimaId: study.ultimaId, contador: study.contador });
   if (!sig || sig.espera) { renderFin(sig && sig.espera); return; }
   const t = S.tarjetas.get(sig.p.id);
@@ -1245,7 +1248,8 @@ function renderBack() {
     }).join('')}</div>`;
   }
   const explic = t.explicacion ? `<div class="explain"><div class="l">Explicación</div><div class="md">${MazoMD.render(t.explicacion)}</div></div>` : '';
-  $('#cardBack').innerHTML = `${verdict}<div class="q-small md">${MazoMD.render(t.pregunta.split('\n')[0])}</div>${cuerpo}${explic}`;
+  // La pregunta completa (con su imagen) también se ve al revisar, para entender mejor la falla
+  $('#cardBack').innerHTML = `${verdict}<div class="q-small q-full md"><div class="l">Pregunta</div>${MazoMD.render(t.pregunta)}</div>${cuerpo}${explic}`;
 
   // La calificación la decide la app; solo se muestra por qué y cuándo vuelve la tarjeta
   const seg = (a.ms / 1000).toLocaleString('es', { maximumFractionDigits: 1 });
@@ -1275,6 +1279,9 @@ async function continuar(seguir = true) {
 // al continuar, al salir o si la app pasa a segundo plano con la tarjeta ya respondida.
 async function guardarRespuesta(a) {
   a.guardada = true;
+  // Tiempo de la sesión: lo que estuvo la tarjeta en pantalla (sin segundo plano y con tope por si se deja abierta)
+  const enPantalla = performance.now() - a.inicio - a.oculto - (a.ocultoDesde != null ? performance.now() - a.ocultoDesde : 0);
+  study.usado = (study.usado || 0) + Math.min(Math.max(enPantalla, 0), 120000);
   const nota = a.nota;
   const antes = a.p;
   // En el repaso de falladas la tarjeta puede no tocar todavía: se agenda sin inflar su intervalo
@@ -1399,6 +1406,19 @@ function renderFin(espera) {
   $('#studyBar').style.width = '100%';
 }
 
+// Cada sesión dura como máximo 10 minutos; para seguir se pide otra
+function renderBloque() {
+  const pct = study.hechas ? Math.round(study.aciertos / study.hechas * 100) : 0;
+  const c = SRS.conteos(candidatos(study.target), Infinity);
+  const quedan = c.nuevas + c.aprend + c.repaso;
+  renderCounts(null);
+  study.terminada = true;
+  borrarSesion();
+  $('#studyBar').style.width = '100%';
+  if (!quedan) return renderFin();
+  $('#studyStage').innerHTML = `<div class="card done"><div class="big">⏱️</div><h3>¡Sesión de ${SESION_MAX_MS / 60000} minutos lista!</h3><p class="muted">${study.hechas} tarjetas respondidas · ${pct}% de aciertos. Descansa un poco: lo que respondiste ya quedó guardado.</p><p>Aún quedan ${quedan} por estudiar hoy.</p><div class="toolbar"><button class="btn" type="button" data-act="end-study">Terminar por hoy</button><button class="btn primary" type="button" data-act="more-study">Otros ${SESION_MAX_MS / 60000} min</button></div></div>`;
+}
+
 // Estudiar ya las tarjetas en aprendizaje aunque no les toque todavía
 function estudiarAdelantado() {
   const lista = candidatos(study.target).filter(SRS.enAprendizaje).sort((a, b) => a.vence - b.vence);
@@ -1485,6 +1505,7 @@ document.addEventListener('click', (e) => {
     case 'resume': { const s = sesionPendiente(); if (s) startStudy(s.target, { elegido: true }); break; }
     case 'discard-session': borrarSesion(); toast('Sesión descartada: lo respondido ya quedó guardado'); render(); break;
     case 'study-ahead': estudiarAdelantado(); break;
+    case 'more-study': { const t = study.target; const v = study.volverA; study = null; startStudy(t, { elegido: true }); if (study) study.volverA = v; break; }
     case 'check': evaluar(); break;
     case 'dont-know': evaluar(true); break;
     case 'continue': continuar(); break;
@@ -1536,7 +1557,7 @@ document.addEventListener('keydown', (e) => {
   const inInput = !!(e.target.matches && e.target.matches('input, textarea'));
   const a = study.actual;
   if (!a) {
-    if ((e.key === ' ' || e.key === 'Enter') && !inInput) { const b = $('#studyStage [data-act="end-study"]'); if (b && !$('#studyStage [data-act="study-ahead"]')) { e.preventDefault(); b.click(); } }
+    if ((e.key === ' ' || e.key === 'Enter') && !inInput) { const b = $('#studyStage [data-act="end-study"]'); if (b && !$('#studyStage [data-act="study-ahead"], #studyStage [data-act="more-study"]')) { e.preventDefault(); b.click(); } }
     return;
   }
   if (!a.resultado) {
