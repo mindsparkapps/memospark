@@ -21,7 +21,8 @@
 // 2.9 el mazo de ejemplo de AWS se reimporta solo cuando se publica una versión nueva del .md (conserva el progreso)
 // 3.0 botón «Usar mazo AWS» en Importar: carga el mazo publicado sin buscar el archivo
 // 3.3 mascota: un perrito que guiña el ojo al acertar y se pone triste al fallar
-const APP_VERSION = '3.3';
+// 3.4 perrito de cuerpo completo que sube desde abajo, celebra o se entristece y dice una frase
+const APP_VERSION = '3.4';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -1243,6 +1244,64 @@ function mostrarSello(ok) {
   sello.addEventListener('animationend', (e) => { if (e.target === sello) sello.remove(); });
 }
 
+// Perrito de cuerpo completo: entra por abajo, celebra (salta, guiña, saluda y mueve la cola) o se pone triste, y se va
+const FRASES_OK = ['¡Genial!', '¡Eso es!', '¡Muy bien!', '¡Crack!', '¡Así se hace!'];
+const FRASES_BAD = ['¡Casi!', 'Ánimo', 'La próxima sale', 'No pasa nada'];
+function perroSvg(ok) {
+  const ojoIzq = `<circle cx="82" cy="62" r="7.5" fill="#fff"/><circle cx="83" cy="${ok ? 63 : 66}" r="4.2" fill="#2b1d16"/><circle cx="84.5" cy="${ok ? 61.5 : 64.5}" r="1.5" fill="#fff"/>`;
+  const cara = ok
+    ? `<g class="guino-abierto"><circle cx="118" cy="62" r="7.5" fill="#fff"/><circle cx="119" cy="63" r="4.2" fill="#2b1d16"/><circle cx="120.5" cy="61.5" r="1.5" fill="#fff"/></g>
+       <path class="guino-cerrado" d="M110 63q8-9 16 0" fill="none" stroke="#2b1d16" stroke-width="4" stroke-linecap="round"/>
+       <path d="M87 88Q100 108 113 88Z" fill="#6b2e26"/>
+       <path class="lengua" d="M93 95Q100 112 107 95Z" fill="#ff7b8f"/>`
+    : `<circle cx="118" cy="62" r="7.5" fill="#fff"/><circle cx="117" cy="66" r="4.2" fill="#2b1d16"/><circle cx="118.5" cy="64.5" r="1.5" fill="#fff"/>
+       <path d="M70 53l17-6M130 53l-17-6" stroke="#2b1d16" stroke-width="3.4" stroke-linecap="round"/>
+       <path d="M89 96q11-9 22 0" fill="none" stroke="#2b1d16" stroke-width="3" stroke-linecap="round"/>
+       <path class="lagrima" d="M126 70q-5 8 0 11t0-11z" fill="#6cc4ff"/>`;
+  const pataDer = `<rect x="104" y="148" width="16" height="44" rx="8" fill="#dfa962"/><ellipse cx="112" cy="191" rx="11" ry="7" fill="#fbe9cf"/>`;
+  return `<svg class="perro ${ok ? 'ok' : 'bad'}" viewBox="0 0 200 210" aria-hidden="true">
+    <ellipse class="sombra" cx="100" cy="201" rx="58" ry="7" fill="#000" opacity=".16"/>
+    <g class="cuerpo">
+      <path class="cola" d="M138 172q32-6 34-42" fill="none" stroke="#c98d4a" stroke-width="12" stroke-linecap="round"/>
+      <ellipse cx="66" cy="180" rx="26" ry="19" fill="#d9a25e"/>
+      <ellipse cx="134" cy="180" rx="26" ry="19" fill="#d9a25e"/>
+      <ellipse cx="100" cy="150" rx="44" ry="47" fill="#e9b872"/>
+      <ellipse cx="100" cy="160" rx="25" ry="32" fill="#fbe9cf"/>
+      <rect x="80" y="148" width="16" height="44" rx="8" fill="#dfa962"/><ellipse cx="88" cy="191" rx="11" ry="7" fill="#fbe9cf"/>
+      ${ok ? '' : pataDer}
+      <path d="M64 110q36 18 72 0" fill="none" stroke="#e5484d" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="100" cy="122" r="6.5" fill="#ffc83d" stroke="#c99a1c" stroke-width="2"/>
+      ${ok ? `<g class="pata-saludo">${pataDer}</g>` : ''}
+      <g class="cabeza">
+        <g transform="rotate(14 52 60)"><ellipse class="oreja o-i" cx="52" cy="62" rx="14" ry="29" fill="#7a4a2b"/></g>
+        <g transform="rotate(-14 148 60)"><ellipse class="oreja o-d" cx="148" cy="62" rx="14" ry="29" fill="#7a4a2b"/></g>
+        <ellipse cx="100" cy="70" rx="40" ry="37" fill="#e9b872"/>
+        <ellipse cx="100" cy="50" rx="7" ry="16" fill="#fbe9cf"/>
+        <ellipse cx="100" cy="85" rx="23" ry="16" fill="#fbe9cf"/>
+        <ellipse cx="72" cy="80" rx="6" ry="4" fill="#ff9aa8" opacity=".55"/>
+        <ellipse cx="128" cy="80" rx="6" ry="4" fill="#ff9aa8" opacity=".55"/>
+        <ellipse cx="100" cy="77" rx="8.5" ry="6" fill="#2b1d16"/>
+        <ellipse cx="97" cy="75" rx="2.6" ry="1.5" fill="#fff" opacity=".6"/>
+        ${ojoIzq}
+        ${cara}
+      </g>
+      ${ok ? `<path class="chispa c1" d="M150 24l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffc83d"/>
+      <path class="chispa c2" d="M44 18l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#ffc83d"/>
+      <path class="chispa c3" d="M168 70l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#ff9aa8"/>` : ''}
+    </g>
+  </svg>`;
+}
+function mostrarPerro(ok) {
+  $$('.perro-escena').forEach(e => e.remove());
+  const frases = ok ? FRASES_OK : FRASES_BAD;
+  const escena = document.createElement('div');
+  escena.className = `perro-escena ${ok ? 'ok' : 'bad'}`;
+  escena.setAttribute('aria-hidden', 'true');
+  escena.innerHTML = `<div class="perro-globo">${frases[Math.floor(Math.random() * frases.length)]}</div>${perroSvg(ok)}`;
+  document.body.appendChild(escena);
+  setTimeout(() => escena.remove(), 3000);
+}
+
 // Perrito mascota: guiña el ojo al acertar, se entristece al fallar (la animación vive en el CSS)
 function mascotaSvg(ok) {
   const cara = ok
@@ -1374,6 +1433,7 @@ function evaluar(noLaSe = false) {
   renderBack();
   $('#flip').classList.add('flipped');
   mostrarSello(ok);
+  mostrarPerro(ok);
 }
 
 function renderBack() {
