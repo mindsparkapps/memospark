@@ -17,7 +17,7 @@
 // 2.4 «Continuar» muestra el tiempo que falta de la sesión; «Sin ver» del mazo es un botón que estudia solo las tarjetas sin ver
 // 2.5 tiempo restante en un marco verde; el botón atrás del celular vuelve a la vista anterior; cada tipo de respuesta lleva su propio progreso y meta diaria
 // 2.6 en el mazo, cada tipo de respuesta tiene su botón Estudiar/Continuar y «Practicar de nuevo» (también si ya está al día)
-const APP_VERSION = '2.6';
+const APP_VERSION = '2.7';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -687,7 +687,7 @@ function renderMazo() {
       <p class="muted" style="font-size:.8rem;margin:2px 0 8px">Cada tipo lleva su propio progreso y su meta diaria: puedes estudiarlos en paralelo y practicar de nuevo uno que ya está al día.</p>
       ${(() => { const sp = sesionPendiente(); return m.modos.map((txt, i) => {
         const cc = conteosMazo(m, i); const n = cc.nuevas + cc.aprend + cc.repaso;
-        const cont = sp && sp.target === m.id && !sp.soloNuevas && sp.modo === i;
+        const cont = sp && sp.target === m.id && !sp.soloNuevas && (sp.modo ?? modoDe(m.id)) === i;
         return `<div class="modo-row"><div class="grow"><b>${esc(txt)}</b><span>${n ? `${n} para hoy` : 'Al día ✓'}</span></div>
           <button class="btn sm" type="button" data-practica="${i}" ${tarjetas.length ? '' : 'disabled'}>Practicar de nuevo</button>
           <button class="btn primary sm" type="button" data-estudiar-modo="${i}" ${n || cont ? '' : 'disabled'}>${cont ? `Continuar ▶ · ${quedaTxt(sp)}` : 'Estudiar'}</button></div>`;
