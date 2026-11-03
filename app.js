@@ -18,7 +18,9 @@
 // 2.5 tiempo restante en un marco verde; el botón atrás del celular vuelve a la vista anterior; cada tipo de respuesta lleva su propio progreso y meta diaria
 // 2.6 en el mazo, cada tipo de respuesta tiene su botón Estudiar/Continuar y «Practicar de nuevo» (también si ya está al día)
 // 2.8 siglas subrayadas con globo de significado (glosario «Sigla: X = …» del mazo) y tipo de respuesta «Sigla y significado»
-const APP_VERSION = '2.8';
+// 2.9 el mazo de ejemplo de AWS se reimporta solo cuando se publica una versión nueva del .md (conserva el progreso)
+// 3.0 botón «Usar mazo AWS» en Importar: carga el mazo publicado sin buscar el archivo
+const APP_VERSION = '3.0';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -909,12 +911,23 @@ function analizar(texto) {
 
 async function confirmarImportar() {
   if (!impParsed || !impParsed.mazos.length) return;
+  const totalTarjetas = await guardarMazos(impParsed.mazos);
+  $('#dlg-import').close();
+  toast(`Importado: ${impParsed.mazos.length === 1 ? `«${impParsed.mazos[0].nombre}»` : `${impParsed.mazos.length} mazos`} con ${totalTarjetas} tarjetas`);
+  const unico = impParsed.mazos.length === 1 ? impParsed.mazos[0].id : null;
+  impParsed = null;
+  if (unico) go('mazo', { mazo: unico }); else go('mazos');
+}
+
+// Guarda mazos leídos (nuevos o ya existentes: las tarjetas que no cambian conservan su progreso). fuente: huella del .md de origen
+async function guardarMazos(mazos, fuente) {
   const now = Date.now();
   let totalTarjetas = 0;
-  for (const m of impParsed.mazos) {
+  for (const m of mazos) {
     const existente = S.mazos.get(m.id);
     await save('mazos', [{
       ...(existente || { creado: now, nuevasPorDia: 20 }),
+      ...(fuente ? { fuente } : {}),
       id: m.id, nombre: m.nombre, descripcion: reemplazarImagenes(m.descripcion),
       modos: m.modos && m.modos.length > 1 ? m.modos : [],
       siglas: m.siglas || {},
@@ -938,16 +951,35 @@ async function confirmarImportar() {
     if (progQuitar.length) await save('progreso', [], progQuitar);
     totalTarjetas += m.tarjetas.length;
   }
-  $('#dlg-import').close();
-  toast(`Importado: ${impParsed.mazos.length === 1 ? `«${impParsed.mazos[0].nombre}»` : `${impParsed.mazos.length} mazos`} con ${totalTarjetas} tarjetas`);
-  const unico = impParsed.mazos.length === 1 ? impParsed.mazos[0].id : null;
-  impParsed = null;
-  if (unico) go('mazo', { mazo: unico }); else go('mazos');
+  return totalTarjetas;
 }
 
-async function cargarEjemplo() {
+// Los mazos de ejemplo que ya tienes se actualizan solos cuando se publica una versión nueva del .md
+// (mismo nombre de mazo: lo que no cambió conserva su progreso). Si no hay conexión, no pasa nada.
+const EJEMPLOS = ['ejemplos/aws-arquitecto.md'];
+let ejemplosRevisados = false;
+async function actualizarEjemplos() {
+  if (ejemplosRevisados || readOnly) return;
+  ejemplosRevisados = true;
+  for (const ruta of EJEMPLOS) {
+    try {
+      const r = await fetch(ruta, { cache: 'no-cache' });
+      if (!r.ok) continue;
+      const texto = await r.text();
+      const res = MazoMD.parse(texto);
+      const fuente = MazoMD.hash(texto);
+      const mazos = res.mazos.filter(m => S.mazos.has(m.id) && S.mazos.get(m.id).fuente !== fuente);
+      if (!mazos.length) continue;
+      await guardarMazos(mazos, fuente);
+      toast(`Mazo «${mazos[0].nombre}» actualizado`);
+      render();
+    } catch (e) { console.warn('Ejemplo', ruta, e); }
+  }
+}
+
+async function cargarEjemplo(nombre = 'capitales-de-europa') {
   try {
-    const r = await fetch('ejemplos/capitales-de-europa.md');
+    const r = await fetch(`ejemplos/${nombre}.md`, { cache: 'no-cache' });
     if (!r.ok) throw new Error(r.status);
     const texto = await r.text();
     if (!$('#dlg-import').open) abrirImportar();
@@ -1650,7 +1682,7 @@ document.addEventListener('click', (e) => {
   const m = S.mazos.get(mazoAbierto);
   switch (act.dataset.act) {
     case 'import': abrirImportar(); break;
-    case 'load-example': cargarEjemplo(); break;
+    case 'load-example': cargarEjemplo(act.dataset.ejemplo); break;
     case 'study-all': startStudy('*'); break;
     case 'end-study': salirDelEstudio(); break;
     case 'resume': { const s = sesionPendiente(); if (s) fijarModo(s.target, s.modo == null ? null : s.modo).then(() => startStudy(s.target, { elegido: true, soloNuevas: !!s.soloNuevas })); break; }
@@ -1807,6 +1839,7 @@ if (IN_ZENBAN) {
     if (vista !== 'estudio') sesionGuardada = (state && state.sesion) || null;
     pluginReady = true;
     if (vista !== 'estudio') render();
+    actualizarEjemplos();
   });
   // Si ZenBan no contesta (por ejemplo, página abierta en una ventana web vieja), igual se puede usar
   setTimeout(() => { if (!pluginReady) { pluginReady = true; render(); } }, 5000);
@@ -1815,7 +1848,7 @@ if (IN_ZENBAN) {
   render();
 } else {
   (async () => {
-    try { db = await openDb(); await window.refreshFromDb(); }
+    try { db = await openDb(); await window.refreshFromDb(); await actualizarEjemplos(); }
     catch (e) { console.warn('IndexedDB', e); render(); toast('Este navegador no permite guardar datos: lo que hagas no se conservará'); }
     try { startSync(); } catch (e) { console.warn('Sync', e); }
     if (db && typeof syncEnabled === 'function' && syncEnabled()) setTimeout(() => { if (SYNC.token) syncNow(); }, 800);
