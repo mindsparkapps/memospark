@@ -135,6 +135,7 @@ textarea.mono{font-family:var(--f-mono);font-size:.85rem;min-height:220px}
 .resume .grow{flex:1 1 220px;min-width:0}
 .resume b{display:block}
 .resume span{font-size:.85rem;color:var(--muted)}
+.resume .queda{display:inline-block;margin-left:6px;padding:1px 10px;border:1.5px solid var(--good);border-radius:999px;background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good);font-size:.85rem;font-weight:700}
 
 /* Estado vacío */
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:32px 20px;text-align:center;display:grid;gap:14px;justify-items:center}

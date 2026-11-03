@@ -15,7 +15,8 @@
 // 2.1 estilo propio o de ZenBan (botón arriba y en la barra de la ventana de ZenBan), como TablaQuiz
 // 2.3 la pregunta completa se ve también al revisar la respuesta; cada sesión dura máx. 10 min (se pide otra para seguir)
 // 2.4 «Continuar» muestra el tiempo que falta de la sesión; «Sin ver» del mazo es un botón que estudia solo las tarjetas sin ver
-const APP_VERSION = '2.4';
+// 2.5 tiempo restante en un marco verde; el botón atrás del celular vuelve a la vista anterior; cada tipo de respuesta lleva su propio progreso y meta diaria
+const APP_VERSION = '2.5';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -160,12 +161,20 @@ async function save(store, puts = [], dels = []) {
 /* ---------- Consultas ---------- */
 const mazosOrdenados = () => [...S.mazos.values()].sort((a, b) => (a.creado || 0) - (b.creado || 0));
 const tarjetasDe = (mazoId) => [...S.tarjetas.values()].filter(t => t.mazoId === mazoId).sort((a, b) => a.orden - b.orden);
-const progresoDe = (t) => S.progreso.get(t.id) || SRS.nuevo(t.id, t.mazoId);
-const diaDe = (mazoId, key = SRS.dayKey()) => S.dias.get(`${mazoId}|${key}`) || { id: `${mazoId}|${key}`, mazoId, dia: key, nuevas: 0, repasos: 0, aciertos: 0, total: 0 };
-const nuevasRestantes = (m) => Math.max(0, (m.nuevasPorDia ?? 20) - diaDe(m.id).nuevas);
+// Cada tipo de respuesta de un mazo lleva su propio progreso y su propia meta diaria (el primero usa las claves de siempre):
+// así se pueden practicar en paralelo. En memoria el progreso conserva el id de la tarjeta; solo la clave guardada cambia.
+const claveProg = (id, v) => v ? `${id}~${v}` : id;
+const clavesProg = (id) => [id, ...Array.from({ length: 9 }, (_, i) => `${id}~${i + 1}`)].filter(k => S.progreso.has(k));
+const progresoDe = (t, v = modoDe(t.mazoId)) => { const p = S.progreso.get(claveProg(t.id, v)); return p ? { ...p, id: t.id } : SRS.nuevo(t.id, t.mazoId); };
+const diaDe = (mazoId, key = SRS.dayKey(), v = modoDe(mazoId)) => { const id = `${claveProg(mazoId, v)}|${key}`; return S.dias.get(id) || { id, mazoId, dia: key, nuevas: 0, repasos: 0, aciertos: 0, total: 0 }; };
+const nuevasRestantes = (m, v = modoDe(m.id)) => Math.max(0, (m.nuevasPorDia ?? 20) - diaDe(m.id, undefined, v).nuevas);
 
-function conteosMazo(m) {
-  return SRS.conteos(tarjetasDe(m.id).map(progresoDe), nuevasRestantes(m));
+function conteosMazo(m, v = modoDe(m.id)) {
+  return SRS.conteos(tarjetasDe(m.id).map(t => progresoDe(t, v)), nuevasRestantes(m, v));
+}
+// Pendientes de hoy en cada tipo de respuesta del mazo (uno solo si el mazo no tiene varios)
+function pendientesPorModo(m) {
+  return (modosDe(m).length ? m.modos : [null]).map((_, v) => { const c = conteosMazo(m, v); return c.nuevas + c.aprend + c.repaso; });
 }
 function totalPendientes() {
   return mazosOrdenados().reduce((n, m) => { const c = conteosMazo(m); return n + c.nuevas + c.aprend + c.repaso; }, 0);
@@ -176,8 +185,11 @@ let vista = 'mazos';
 let mazoAbierto = null;
 function go(v, opts = {}) {
   if (vista === 'estudio' && v !== 'estudio') endStudy();
+  const cambia = v !== vista || (opts.mazo && opts.mazo !== mazoAbierto);
   vista = v;
   if (opts.mazo) mazoAbierto = opts.mazo;
+  // Cada vista queda en el historial: el botón atrás del celular vuelve a la vista anterior en vez de salir de la app o del plugin
+  if (cambia && !opts.atras) { try { history.pushState({ ms: 1, v, mazo: mazoAbierto }, ''); } catch (e) {} }
   $$('section.view').forEach(s => { s.hidden = s.id !== `v-${v}`; });
   document.body.classList.toggle('estudiando', v === 'estudio');
   const tab = v === 'mazo' || v === 'estudio' || v === 'revisar' ? 'mazos' : v;
@@ -185,6 +197,14 @@ function go(v, opts = {}) {
   render();
   window.scrollTo({ top: 0 });
 }
+
+try { history.replaceState({ ms: 1, v: 'mazos', mazo: null }, ''); } catch (e) {}
+window.addEventListener('popstate', (e) => {
+  const s = e.state && e.state.ms ? e.state : { v: 'mazos', mazo: null };
+  // Una sesión de estudio no se puede reconstruir desde el historial: se vuelve al mazo
+  const v = s.v === 'estudio' ? (s.mazo ? 'mazo' : 'mazos') : s.v === 'mazo' && !s.mazo ? 'mazos' : s.v;
+  go(v, { mazo: s.mazo || undefined, atras: true });
+});
 
 function render() {
   if (vista === 'mazos') renderMazos();
@@ -243,7 +263,7 @@ function renderMazos() {
     const dominadas = prog.filter(p => p.estado === 'repaso' && p.intervalo >= 21).length;
     const vistas = prog.filter(p => p.estado !== 'nuevo').length;
     const pct = (n) => tarjetas.length ? (n / tarjetas.length * 100).toFixed(1) : 0;
-    const hay = c.nuevas + c.aprend + c.repaso;
+    const hay = c.nuevas + c.aprend + c.repaso || (pendientesPorModo(m).some(n => n > 0) ? 1 : 0);
     return `
       <article class="deck">
         <div>
@@ -271,7 +291,7 @@ function renderMazos() {
 
   $('#mazos-body').innerHTML = `
     ${sesion ? `<div class="resume">
-      <div class="grow"><b>Tienes una sesión a medias</b><span>${esc(sesion.target === '*' ? 'Todos los mazos' : S.mazos.get(sesion.target).nombre)} · ${sesion.hechas} ${sesion.hechas === 1 ? 'respondida' : 'respondidas'}${sesion.soloNuevas ? ' · sin ver' : ''}${sesion.hechas ? ` · ${Math.round(sesion.aciertos / sesion.hechas * 100)}% de aciertos` : ''} · ${quedaTxt(sesion)}</span></div>
+      <div class="grow"><b>Tienes una sesión a medias</b><span>${esc(sesion.target === '*' ? 'Todos los mazos' : S.mazos.get(sesion.target).nombre)} · ${sesion.hechas} ${sesion.hechas === 1 ? 'respondida' : 'respondidas'}${sesion.soloNuevas ? ' · sin ver' : ''}${sesion.hechas ? ` · ${Math.round(sesion.aciertos / sesion.hechas * 100)}% de aciertos` : ''} <b class="queda">${quedaTxt(sesion)}</b></span></div>
       <button class="btn ghost sm" type="button" data-act="discard-session">Descartar</button>
       <button class="btn primary" type="button" data-act="resume">Continuar ▶</button>
     </div>` : ''}
@@ -642,7 +662,8 @@ function renderMazo() {
   if (!m) { go('mazos'); return; }
   const tarjetas = tarjetasDe(m.id);
   const c = conteosMazo(m);
-  const hay = c.nuevas + c.aprend + c.repaso;
+  const hayAqui = c.nuevas + c.aprend + c.repaso;
+  const hay = hayAqui || (pendientesPorModo(m).some(n => n > 0) ? 1 : 0);
 
   $('#mazo-body').innerHTML = `
     <div><button class="btn ghost sm" type="button" data-go="mazos">← Mazos</button></div>
@@ -651,7 +672,7 @@ function renderMazo() {
         <h2>${esc(m.nombre)}</h2>
         ${m.descripcion ? `<div class="md muted" style="margin-top:6px">${MazoMD.render(m.descripcion)}</div>` : ''}
       </div>
-      ${(() => { const sp = sesionPendiente(); const mia = sp && sp.target === m.id; return `<button class="btn primary" type="button" data-study="${esc(m.id)}" ${mia && sp.soloNuevas ? 'data-nuevas="1"' : ''} ${hay ? '' : 'disabled'}>${hay ? (mia ? `Continuar ▶ · ${quedaTxt(sp)}` : `Estudiar (${hay})`) : 'Al día ✓'}</button>`; })()}
+      ${(() => { const sp = sesionPendiente(); const mia = sp && sp.target === m.id; return `<button class="btn primary" type="button" data-study="${esc(m.id)}" ${mia && sp.soloNuevas ? 'data-nuevas="1"' : ''} ${hay ? '' : 'disabled'}>${hay ? (mia ? `Continuar ▶ · ${quedaTxt(sp)}` : hayAqui ? `Estudiar (${hayAqui})` : 'Estudiar otro tipo') : 'Al día ✓'}</button>`; })()}
     </div>
     <div class="today">
       <button class="stat stat-btn" type="button" data-study="${esc(m.id)}" data-nuevas="1" ${c.nuevasTotal ? '' : 'disabled'} title="Estudiar solo las tarjetas que aún no has visto"><div class="v" style="color:var(--new)">${c.nuevasTotal}</div><div class="l">Sin ver${c.nuevasTotal ? ' · estudiar ▶' : ''}</div></button>
@@ -865,7 +886,7 @@ async function confirmarImportar() {
     });
     const quitar = viejas.filter(t => !nuevasIds.has(t.id)).map(t => t.id);
     await save('tarjetas', puts, quitar);
-    const progQuitar = quitar.filter(id => S.progreso.has(id));
+    const progQuitar = quitar.flatMap(clavesProg);
     if (progQuitar.length) await save('progreso', [], progQuitar);
     totalTarjetas += m.tarjetas.length;
   }
@@ -922,12 +943,16 @@ function startStudy(target, { elegido = false, soloNuevas = false, ids = null } 
   // Si hay una sesión a medias de este mismo mazo (y del mismo tipo), se retoma (con su tipo de respuesta ya elegido)
   const previa = sesionPendiente();
   const reanudar = previa && previa.target === target && !!previa.soloNuevas === !!soloNuevas ? previa : null;
+  const m = target !== '*' && S.mazos.get(target);
+  // Cada tipo de respuesta tiene su propio progreso y meta diaria: se elige uno que aún tenga tarjetas para hoy
+  if (m && modosDe(m).length && !elegido && !reanudar) {
+    if (pendientesPorModo(m).some(n => n > 0)) elegirModo(m, soloNuevas); else toast('No hay tarjetas para estudiar ahora');
+    return;
+  }
   const idsSolo = soloNuevas ? new Set(reanudar ? reanudar.ids || [] : ids || []) : null;
   const lista = candidatos(target, idsSolo);
   const c = SRS.conteos(lista, Infinity);
   if (!c.nuevas && !c.aprend && !c.repaso) { if (!soloNuevas) borrarSesion(); toast(soloNuevas ? 'No quedan tarjetas sin ver' : 'No hay tarjetas para estudiar ahora'); return; }
-  const m = target !== '*' && S.mazos.get(target);
-  if (m && modosDe(m).length && !elegido && !reanudar) { elegirModo(m, soloNuevas); return; }
   if (!reanudar) borrarSesion();
   study = { target, soloNuevas, ids: idsSolo, contador: 0, ultimaId: null, hechas: 0, aciertos: 0, usado: 0, inicial: c.nuevas + c.aprend + c.repaso, actual: null, espera: null };
   if (reanudar) Object.assign(study, { usado: reanudar.usado || 0, hechas: reanudar.hechas, aciertos: reanudar.aciertos, contador: reanudar.contador, inicial: Math.max(reanudar.inicial, reanudar.hechas + c.nuevas + c.aprend + c.repaso) });
@@ -948,10 +973,12 @@ function salirDelEstudio() {
 }
 
 function elegirModo(m, soloNuevas = false) {
-  const actual = modoDe(m.id);
+  const pend = pendientesPorModo(m);
+  const ultimo = modoDe(m.id);
+  const actual = pend[ultimo] > 0 ? ultimo : Math.max(0, pend.findIndex(n => n > 0));
   $('#modoMazo').textContent = m.nombre;
   $('#modoOpciones').innerHTML = m.modos.map((txt, i) => `
-    <label class="modo-op"><input type="radio" name="modoResp" value="${i}" ${i === actual ? 'checked' : ''}><span><b>${esc(txt)}</b>${i === actual ? '<small>La última vez</small>' : ''}</span></label>`).join('');
+    <label class="modo-op"><input type="radio" name="modoResp" value="${i}" ${i === actual ? 'checked' : ''} ${pend[i] > 0 ? '' : 'disabled'}><span><b>${esc(txt)}</b><small>${pend[i] > 0 ? `${pend[i]} para hoy${i === ultimo ? ' · la última vez' : ''}` : 'Al día ✓'}</small></span></label>`).join('');
   $('#modoEmpezar').onclick = async () => {
     const sel = +(($('input[name="modoResp"]:checked') || {}).value || 0);
     $('#dlg-modo').close();
@@ -1006,7 +1033,7 @@ function falladasDe(target, max = 20) {
   });
   const tarjetas = target === '*' ? [...S.tarjetas.values()] : tarjetasDe(target);
   return tarjetas.map(t => {
-    const p = S.progreso.get(t.id);
+    const p = S.progreso.get(claveProg(t.id, modoDe(t.mazoId)));
     const e = Math.max(errores.get(t.id) || 0, (p && p.fallos) || 0);
     const n = Math.max(totales.get(t.id) || 0, e);
     return { t, errores: e, total: n, tasa: n ? e / n : 0, ultimoFallo: ultimo.get(t.id) || 0 };
@@ -1061,7 +1088,7 @@ function mostrarTarjeta(t, tipo) {
   const opciones = t.opciones && t.opciones.length ? shuffle(t.opciones.map(o => ({ t: MazoMD.variante(o.t, version), ok: o.ok }))) : [];
   const correctas = opciones.filter(o => o.ok).length;
   study.actual = {
-    t, p: S.progreso.get(t.id) || SRS.nuevo(t.id, t.mazoId), tipo, opciones, version,
+    t, p: progresoDe(t, version), tipo, opciones, version,
     modo: !opciones.length ? 'libre' : correctas > 1 ? 'multiple' : 'unica',
     elegidas: new Set(), resultado: null,
     inicio: performance.now(), oculto: 0, ocultoDesde: null
@@ -1307,9 +1334,9 @@ async function guardarRespuesta(a) {
   if (acierto) study.aciertos++;
   study.contador++;
   study.ultimaId = antes.id;
-  const dia = diaDe(antes.mazoId);
+  const dia = diaDe(antes.mazoId, undefined, a.version || 0);
   const d2 = { ...dia, total: dia.total + 1, aciertos: dia.aciertos + (acierto ? 1 : 0), nuevas: dia.nuevas + (antes.estado === 'nuevo' ? 1 : 0), repasos: dia.repasos + (antes.estado === 'nuevo' ? 0 : 1) };
-  const prog = { ...despues };
+  const prog = { ...despues, id: claveProg(antes.id, a.version || 0) };
   delete prog.orden;
   await save('progreso', [prog]);
   await save('dias', [d2]);
@@ -1538,14 +1565,14 @@ document.addEventListener('click', (e) => {
     case 'copy-md': if (m) copiar(MazoMD.serialize(m, tarjetasDe(m.id)), 'Mazo copiado en formato .md'); break;
     case 'reset':
       if (m) confirmarConBoton(act, '¿Seguro? Toca otra vez', async () => {
-        await save('progreso', [], tarjetasDe(m.id).map(t => t.id).filter(id => S.progreso.has(id)));
+        await save('progreso', [], tarjetasDe(m.id).flatMap(t => clavesProg(t.id)));
         toast('Progreso reiniciado'); render();
       });
       break;
     case 'delete':
       if (m) confirmarConBoton(act, '¿Eliminar? Toca otra vez', async () => {
         const ids = tarjetasDe(m.id).map(t => t.id);
-        await save('progreso', [], ids.filter(id => S.progreso.has(id)));
+        await save('progreso', [], ids.flatMap(clavesProg));
         await save('tarjetas', [], ids);
         await save('dias', [], [...S.dias.values()].filter(d => d.mazoId === m.id).map(d => d.id));
         await save('mazos', [], [m.id]);
