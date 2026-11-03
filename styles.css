@@ -76,6 +76,8 @@ nav.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accen
    desplazarse de lado para ver las alternativas) */
 section.view{padding-top:24px;display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
 section.view>*{min-width:0}
+section.view>[id$="-body"]{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+section.view>[id$="-body"]>*{min-width:0}
 .head-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .toolbar.wrap-row{margin-top:16px}

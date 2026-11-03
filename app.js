@@ -20,7 +20,7 @@
 // 2.8 siglas subrayadas con globo de significado (glosario «Sigla: X = …» del mazo) y tipo de respuesta «Sigla y significado»
 // 2.9 el mazo de ejemplo de AWS se reimporta solo cuando se publica una versión nueva del .md (conserva el progreso)
 // 3.0 botón «Usar mazo AWS» en Importar: carga el mazo publicado sin buscar el archivo
-const APP_VERSION = '3.1';
+const APP_VERSION = '3.2';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
