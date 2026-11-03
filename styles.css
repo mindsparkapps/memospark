@@ -472,3 +472,6 @@ body.in-zenban header.top{position:static}
 .modo-row .grow{flex:1 1 180px;min-width:0}
 .modo-row b{display:block}
 .modo-row span{font-size:.82rem;color:var(--muted)}
+.sigla{text-decoration:underline;text-decoration-style:dotted;text-decoration-thickness:2px;text-underline-offset:3px;cursor:pointer}
+.sigla:hover{color:var(--accent)}
+.sigla-pop{position:fixed;z-index:80;max-width:min(300px,calc(100vw - 16px));background:var(--surface);color:var(--ink);border:1.5px solid var(--accent);border-radius:10px;padding:8px 12px;box-shadow:0 6px 24px rgba(0,0,0,.28);font-size:.9rem;line-height:1.35}

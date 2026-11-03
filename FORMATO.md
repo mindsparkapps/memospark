@@ -126,6 +126,7 @@ Reglas:
 8. Una idea por tarjeta, preguntas claras y sin ambigüedad; no repitas preguntas.
 9. No escribas nada fuera del formato (ni saludos ni comentarios).
 10. Opcional, solo si lo pido: varios tipos de respuesta para elegir antes de estudiar. Bajo el título del mazo agrega una línea "Modos: Nombre del tipo 1 | Nombre del tipo 2" y escribe cada alternativa (y cada "Respuesta:") con una versión por tipo separadas por " || ", en el mismo orden. Ejemplo: "- [x] Amazon S3 || **Amazon S3** — almacenamiento de objetos".
+11. Opcional, solo si lo pido: glosario de siglas. Bajo el título del mazo agrega una línea por sigla con el formato "Sigla: S3 = Simple Storage Service". En las tarjetas, esas siglas salen subrayadas y al tocarlas se ve su significado. Si además agregas un tipo de respuesta cuyo nombre empiece con "Sigla" (por ejemplo "Modos: Solo el nombre | Sigla y significado"), ese tipo muestra la sigla del servicio correcto de cada tarjeta y hay que escribir su significado.
 ```
 
 Si cambias el formato, actualiza también `formato.js` (es el mismo texto que copia la app).

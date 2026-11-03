@@ -2,7 +2,77 @@
 
 Reconoce los servicios por su ícono y elige el correcto para cada escenario: IAM, EC2, S3, VPC, ELB y Auto Scaling, RDS y Aurora, Lambda y API Gateway, SQS y SNS, CloudFront y Route 53, DynamoDB, KMS y Secrets Manager, CloudWatch y CloudTrail, contenedores, CloudFormation, migración, backup y recuperación ante desastres.
 
-Modos: Solo el nombre | Nombre y para qué sirve
+Modos: Solo el nombre | Nombre y para qué sirve | Sigla y significado
+
+Sigla: AWS = Amazon Web Services
+Sigla: S3 = Simple Storage Service
+Sigla: EC2 = Elastic Compute Cloud
+Sigla: IAM = Identity and Access Management
+Sigla: AZ = Availability Zone (zona de disponibilidad)
+Sigla: API = Application Programming Interface
+Sigla: VPC = Virtual Private Cloud
+Sigla: RDS = Relational Database Service
+Sigla: EBS = Elastic Block Store
+Sigla: SQS = Simple Queue Service
+Sigla: EFS = Elastic File System
+Sigla: SNS = Simple Notification Service
+Sigla: KMS = Key Management Service
+Sigla: ECS = Elastic Container Service
+Sigla: NAT = Network Address Translation
+Sigla: EKS = Elastic Kubernetes Service
+Sigla: DMS = Database Migration Service
+Sigla: IA = Infrequent Access (acceso poco frecuente)
+Sigla: ECR = Elastic Container Registry
+Sigla: ACL = Access Control List
+Sigla: SSE = Server-Side Encryption
+Sigla: CDN = Content Delivery Network
+Sigla: ALB = Application Load Balancer
+Sigla: IP = Internet Protocol
+Sigla: HTTP = HyperText Transfer Protocol
+Sigla: DNS = Domain Name System
+Sigla: DAX = DynamoDB Accelerator
+Sigla: VPN = Virtual Private Network
+Sigla: NLB = Network Load Balancer
+Sigla: NFS = Network File System
+Sigla: MFA = Multi-Factor Authentication
+Sigla: TTL = Time To Live
+Sigla: FIFO = First In, First Out
+Sigla: CPU = Central Processing Unit
+Sigla: URL = Uniform Resource Locator
+Sigla: UDP = User Datagram Protocol
+Sigla: SCT = Schema Conversion Tool
+Sigla: SCP = Service Control Policy
+Sigla: MGN = Application Migration Service
+Sigla: GSI = Global Secondary Index
+Sigla: LSI = Local Secondary Index
+Sigla: GB = Gigabyte
+Sigla: TB = Terabyte
+Sigla: ELB = Elastic Load Balancing
+Sigla: WAF = Web Application Firewall
+Sigla: TCP = Transmission Control Protocol
+Sigla: SES = Simple Email Service
+Sigla: REST = Representational State Transfer
+Sigla: OAC = Origin Access Control
+Sigla: MX = Mail Exchanger
+Sigla: HTTPS = HyperText Transfer Protocol Secure
+Sigla: GWLB = Gateway Load Balancer
+Sigla: CNAME = Canonical Name
+Sigla: CLB = Classic Load Balancer
+Sigla: TLS = Transport Layer Security
+Sigla: SSM = Systems Manager
+Sigla: SSL = Secure Sockets Layer
+Sigla: SQL = Structured Query Language
+Sigla: SMS = Short Message Service
+Sigla: SMB = Server Message Block
+Sigla: RTO = Recovery Time Objective
+Sigla: RAM = Random Access Memory
+Sigla: POSIX = Portable Operating System Interface
+Sigla: JSON = JavaScript Object Notation
+Sigla: HPC = High Performance Computing
+Sigla: HDD = Hard Disk Drive
+Sigla: DLQ = Dead-Letter Queue
+Sigla: DDoS = Distributed Denial of Service
+Sigla: ASG = Auto Scaling Group
 
 ## ¿Qué servicio de AWS es este?
 

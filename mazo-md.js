@@ -13,7 +13,8 @@ const MazoMD = (() => {
   const OPTION_RE = /^\s*[-*+]\s+\[( |x|X)\]\s+(.*)$/;
   const ANSWER_RE = /^\s*\*{0,2}Respuesta\*{0,2}\s*:\s*\*{0,2}\s*(.*)$/i;
   const EXPLAIN_RE = /^\s*\*{0,2}Explicaci[oó]n\*{0,2}\s*:\s*\*{0,2}\s*/i;
-  const MODOS_RE = /^\s*\*{0,2}Modos?(?: de respuesta)?\*{0,2}\s*:\s*\*{0,2}\s*(.+)$/i;
+  const SIGLA_RE = /^\s*\*{0,2}Siglas?\*{0,2}\s*:\s*\*{0,2}\s*([^=\s][^=]*?)\s*=\s*(.+?)\s*$/i;
+  const MODOS_RE =/^\s*\*{0,2}Modos?(?: de respuesta)?\*{0,2}\s*:\s*\*{0,2}\s*(.+)$/i;
 
   // Versión de un texto para el modo de respuesta elegido («corta || larga»); sin modos, la primera
   function variante(texto, modo = 0) {
@@ -119,6 +120,11 @@ const MazoMD = (() => {
           mazo.modos = modos[1].split('|').map(s => s.trim()).filter(Boolean);
           return;
         }
+        const sigla = !inCode && mazo && line.match(SIGLA_RE);
+        if (sigla) {
+          (mazo.siglas = mazo.siglas || {})[sigla[1].trim()] = sigla[2].trim();
+          return;
+        }
         if (mazo) mazo.desc.push(line);
         else if (line.trim()) ensureMazo(n);
         return;
@@ -154,6 +160,8 @@ const MazoMD = (() => {
     const out = [`# ${mazo.nombre}`, ''];
     if (mazo.descripcion) out.push(mazo.descripcion, '');
     if (mazo.modos && mazo.modos.length > 1) out.push(`Modos: ${mazo.modos.join(' | ')}`, '');
+    const siglas = Object.entries(mazo.siglas || {});
+    if (siglas.length) out.push(...siglas.map(([k, v]) => `Sigla: ${k} = ${v}`), '');
     tarjetas.forEach(t => {
       const [titulo, ...resto] = t.pregunta.split('\n');
       out.push(`## ${titulo}`);
@@ -172,7 +180,7 @@ const MazoMD = (() => {
   const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const safeUrl = (u) => /^(https?:|data:image\/|\.{0,2}\/|[\w-]+\.(png|jpe?g|gif|webp|svg)$)/i.test(u.trim()) ? u.trim() : '#';
 
-  function inline(text, images = {}) {
+  function inline(text, images = {}, opts = {}) {
     const codes = [];
     let s = String(text).replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
     s = esc(s);
@@ -184,15 +192,42 @@ const MazoMD = (() => {
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/__([^_]+)__/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<em>$2</em>').replace(/(^|[^_\w])_([^_\s][^_]*?)_(?!\w)/g, '$1<em>$2</em>');
     s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
-    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${esc(codes[i])}</code>`);
+    s = s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${esc(codes[i])}</code>`);
+    return opts.siglas === false ? s : marcarSiglas(s);
   }
 
-  function render(text, images = {}) {
+  // ----- Siglas: las del glosario del mazo («Sigla: S3 = Simple Storage Service») salen subrayadas y se pueden tocar -----
+  let glosario = {}, glosarioKey = '', siglaRe = null;
+  function setSiglas(mapa) {
+    const key = JSON.stringify(mapa || {});
+    if (key === glosarioKey) return;
+    glosarioKey = key;
+    glosario = mapa || {};
+    const claves = Object.keys(glosario).sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    siglaRe = claves.length ? new RegExp(`(?<![\\p{L}\\p{N}_])(?:${claves.join('|')})(?![\\p{L}\\p{N}_])`, 'gu') : null;
+  }
+  const significado = (k) => glosario[k] || '';
+  // Solo el texto suelto: no se tocan etiquetas, código, enlaces ni siglas ya marcadas
+  function marcarSiglas(html) {
+    if (!siglaRe) return html;
+    let salto = 0;
+    return html.split(/(<[^>]*>)/).map(parte => {
+      if (parte[0] === '<') {
+        const m = parte.match(/^<(\/?)(code|pre|a|span)\b/i);
+        if (m && !/\/>$/.test(parte)) salto += m[1] ? -1 : 1;
+        return parte;
+      }
+      if (salto > 0 || !parte) return parte;
+      return parte.replace(siglaRe, (k) => `<span class="sigla" data-sigla="${k}" role="button" tabindex="0">${k}</span>`);
+    }).join('');
+  }
+
+  function render(text, images = {}, opts = {}) {
     const lines = String(text || '').split('\n');
     const html = [];
     let para = [], list = null, code = null;
-    const flushPara = () => { if (para.length) html.push(`<p>${para.map(l => inline(l, images)).join('<br>')}</p>`); para = []; };
-    const flushList = () => { if (list) html.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i, images)}</li>`).join('')}</${list.tag}>`); list = null; };
+    const flushPara = () => { if (para.length) html.push(`<p>${para.map(l => inline(l, images, opts)).join('<br>')}</p>`); para = []; };
+    const flushList = () => { if (list) html.push(`<${list.tag}>${list.items.map(i => `<li>${inline(i, images, opts)}</li>`).join('')}</${list.tag}>`); list = null; };
     lines.forEach(line => {
       if (code) {
         if (/^\s*```/.test(line)) { html.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`); code = null; }
@@ -209,9 +244,9 @@ const MazoMD = (() => {
         return;
       }
       const h = line.match(/^#{3,6}\s+(.*)$/);
-      if (h) { flushPara(); flushList(); html.push(`<h4>${inline(h[1], images)}</h4>`); return; }
+      if (h) { flushPara(); flushList(); html.push(`<h4>${inline(h[1], images, opts)}</h4>`); return; }
       const q = line.match(/^\s*>\s?(.*)$/);
-      if (q) { flushPara(); flushList(); html.push(`<blockquote>${inline(q[1], images)}</blockquote>`); return; }
+      if (q) { flushPara(); flushList(); html.push(`<blockquote>${inline(q[1], images, opts)}</blockquote>`); return; }
       if (!line.trim()) { flushPara(); flushList(); return; }
       flushList();
       para.push(line);
@@ -228,5 +263,5 @@ const MazoMD = (() => {
     return [...refs];
   }
 
-  return { parse, serialize, render, inline, imageRefs, hash, variante };
+  return { parse, serialize, render, inline, imageRefs, hash, variante, setSiglas, significado };
 })();

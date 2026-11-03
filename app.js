@@ -17,7 +17,8 @@
 // 2.4 «Continuar» muestra el tiempo que falta de la sesión; «Sin ver» del mazo es un botón que estudia solo las tarjetas sin ver
 // 2.5 tiempo restante en un marco verde; el botón atrás del celular vuelve a la vista anterior; cada tipo de respuesta lleva su propio progreso y meta diaria
 // 2.6 en el mazo, cada tipo de respuesta tiene su botón Estudiar/Continuar y «Practicar de nuevo» (también si ya está al día)
-const APP_VERSION = '2.7';
+// 2.8 siglas subrayadas con globo de significado (glosario «Sigla: X = …» del mazo) y tipo de respuesta «Sigla y significado»
+const APP_VERSION = '2.8';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -172,7 +173,35 @@ const diaDe = (mazoId, key = SRS.dayKey(), v = modoDe(mazoId)) => { const id = `
 const nuevasRestantes = (m, v = modoDe(m.id)) => Math.max(0, (m.nuevasPorDia ?? 20) - diaDe(m.id, undefined, v).nuevas);
 
 function conteosMazo(m, v = modoDe(m.id)) {
-  return SRS.conteos(tarjetasDe(m.id).map(t => progresoDe(t, v)), nuevasRestantes(m, v));
+  return SRS.conteos(tarjetasModo(m.id, v).map(t => progresoDe(t, v)), nuevasRestantes(m, v));
+}
+
+/* ---------- Tipo de respuesta «Sigla y significado»: se ve la sigla del servicio y se escribe lo que significa ---------- */
+const esModoSigla = (m, v) => modosDe(m).length > 0 && /^sigla/i.test(String((m.modos || [])[v] || '').trim());
+// Sigla de una tarjeta: la primera del glosario del mazo que aparezca en su respuesta correcta (sin la marca «AWS»)
+function siglaDeTarjeta(t) {
+  const m = S.mazos.get(t.mazoId);
+  const glosario = (m && m.siglas) || {};
+  const ok = (t.opciones || []).filter(o => o.ok);
+  if (!ok.length) return null;
+  const corto = MazoMD.variante(ok[0].t, 0);
+  let mejor = null;
+  Object.keys(glosario).forEach(k => {
+    if (k === 'AWS') return;
+    const hit = new RegExp(`(?<![\\p{L}\\p{N}_])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}_])`, 'u').exec(corto);
+    if (hit && (!mejor || hit.index < mejor.i)) mejor = { i: hit.index, sig: k };
+  });
+  if (!mejor) return null;
+  return { sig: mejor.sig, significado: glosario[mejor.sig], respuesta: glosario[mejor.sig].replace(/\s*\(.*\)\s*$/, ''), servicio: MazoMD.variante(ok[0].t, Math.min(1, ((m.modos || []).length) - 1)), largo: corto.length };
+}
+// Tarjetas que entran en un tipo de respuesta: en «Sigla» una por sigla (la del servicio de nombre más corto)
+function tarjetasModo(mazoId, v) {
+  const todas = tarjetasDe(mazoId);
+  if (!esModoSigla(S.mazos.get(mazoId), v)) return todas;
+  const por = new Map();
+  todas.forEach(t => { const s = siglaDeTarjeta(t); if (s && (!por.has(s.sig) || s.largo < por.get(s.sig).largo)) por.set(s.sig, { id: t.id, largo: s.largo }); });
+  const ids = new Set([...por.values()].map(x => x.id));
+  return todas.filter(t => ids.has(t.id));
 }
 // Pendientes de hoy en cada tipo de respuesta del mazo (uno solo si el mazo no tiene varios)
 function pendientesPorModo(m) {
@@ -187,6 +216,7 @@ let vista = 'mazos';
 let mazoAbierto = null;
 function go(v, opts = {}) {
   if (vista === 'estudio' && v !== 'estudio') endStudy();
+  cerrarSigla();
   const cambia = v !== vista || (opts.mazo && opts.mazo !== mazoAbierto);
   vista = v;
   if (opts.mazo) mazoAbierto = opts.mazo;
@@ -209,6 +239,10 @@ window.addEventListener('popstate', (e) => {
 });
 
 function render() {
+  // Glosario de siglas de todos los mazos (se subrayan en las tarjetas)
+  const glosario = {};
+  S.mazos.forEach(mz => Object.assign(glosario, mz.siglas || {}));
+  MazoMD.setSiglas(glosario);
   if (vista === 'mazos') renderMazos();
   else if (vista === 'mazo') renderMazo();
   else if (vista === 'formato') renderFormato();
@@ -883,6 +917,7 @@ async function confirmarImportar() {
       ...(existente || { creado: now, nuevasPorDia: 20 }),
       id: m.id, nombre: m.nombre, descripcion: reemplazarImagenes(m.descripcion),
       modos: m.modos && m.modos.length > 1 ? m.modos : [],
+      siglas: m.siglas || {},
       modo: existente && m.modos && (existente.modo || 0) < m.modos.length ? existente.modo || 0 : 0
     }]);
     const viejas = tarjetasDe(m.id);
@@ -934,7 +969,7 @@ function candidatos(target, solo = null) {
   const out = [];
   mazos.forEach((m, mi) => {
     let libres = nuevasRestantes(m);
-    tarjetasDe(m.id).forEach(t => {
+    tarjetasModo(m.id, modoDe(m.id)).forEach(t => {
       const p = progresoDe(t);
       if (solo) { if (p.estado !== 'nuevo' && !solo.has(t.id)) return; }
       else if (p.estado === 'nuevo') { if (libres <= 0) return; libres--; }
@@ -1100,12 +1135,15 @@ function mostrarTarjeta(t, tipo) {
   if (study.soloNuevas) study.ids.add(t.id);
   // version: tipo de respuesta elegido para el mazo (cada alternativa trae «corta || larga»)
   const version = modoDe(t.mazoId);
+  // «Sigla y significado»: la tarjeta pasa a ser una pregunta de respuesta libre con la sigla (mismo id, así que el progreso es el de la tarjeta)
+  const sg = esModoSigla(S.mazos.get(t.mazoId), version) ? siglaDeTarjeta(t) : null;
+  if (sg) t = { ...t, pregunta: `¿Qué significa la sigla **${sg.sig}**?`, opciones: [], respuesta: sg.respuesta, explicacion: `${sg.servicio}${sg.significado !== sg.respuesta ? `\n\n**${sg.sig}**: ${sg.significado}` : ''}${t.explicacion ? `\n\n${t.explicacion}` : ''}` };
   const opciones = t.opciones && t.opciones.length ? shuffle(t.opciones.map(o => ({ t: MazoMD.variante(o.t, version), ok: o.ok }))) : [];
   const correctas = opciones.filter(o => o.ok).length;
   study.actual = {
     t, p: progresoDe(t, version), tipo, opciones, version,
     modo: !opciones.length ? 'libre' : correctas > 1 ? 'multiple' : 'unica',
-    elegidas: new Set(), resultado: null,
+    elegidas: new Set(), resultado: null, siglaCard: !!sg,
     inicio: performance.now(), oculto: 0, ocultoDesde: null
   };
   renderCounts(tipo);
@@ -1199,7 +1237,7 @@ function renderCard() {
   $('#studyStage').innerHTML = `
     <div class="flip" id="flip">
       <div class="flip-in">
-        <div class="face front">${tag}<div class="qtext">${MazoMD.render(t.pregunta)}</div>${frente}</div>
+        <div class="face front">${tag}<div class="qtext">${MazoMD.render(t.pregunta, {}, { siglas: !a.siglaCard })}</div>${frente}</div>
         <div class="face back" id="cardBack" aria-live="polite"></div>
       </div>
     </div>
@@ -1476,7 +1514,7 @@ async function estudiarModo(i, practica) {
   const m = S.mazos.get(mazoAbierto);
   if (!m) return;
   if ((m.modo || 0) !== i) await save('mazos', [{ ...m, modo: i }]);
-  if (practica) sesionAparte(m.id, shuffle(tarjetasDe(m.id).map(t => t.id)), 'extra', 'Práctica');
+  if (practica) sesionAparte(m.id, shuffle(tarjetasModo(m.id, i).map(t => t.id)), 'extra', 'Práctica');
   else startStudy(m.id, { elegido: true });
 }
 
@@ -1540,7 +1578,38 @@ function confirmarConBoton(btn, texto, fn) {
   setTimeout(() => { if (armado === btn) { btn.classList.remove('armed'); btn.textContent = btn.dataset.txt; armado = null; } }, 3500);
 }
 
+/* ---------- Siglas: al tocar una sigla subrayada se abre un globo con su significado; otro toque lo cierra ---------- */
+let siglaAbierta = null;
+function cerrarSigla() {
+  const p = document.getElementById('siglaPop');
+  if (p) p.remove();
+  siglaAbierta = null;
+}
+function tocarSigla(el) {
+  if (siglaAbierta === el) { cerrarSigla(); return; }
+  cerrarSigla();
+  const k = el.dataset.sigla;
+  const sig = MazoMD.significado(k);
+  if (!sig) return;
+  const p = document.createElement('div');
+  p.id = 'siglaPop';
+  p.className = 'sigla-pop';
+  p.setAttribute('role', 'tooltip');
+  p.innerHTML = `<b>${esc(k)}</b> ${esc(sig)}`;
+  document.body.appendChild(p);
+  const r = el.getBoundingClientRect();
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - p.offsetWidth - 8));
+  const abajo = r.bottom + 8 + p.offsetHeight <= window.innerHeight;
+  p.style.left = `${left}px`;
+  p.style.top = `${abajo ? r.bottom + 8 : Math.max(8, r.top - 8 - p.offsetHeight)}px`;
+  siglaAbierta = el;
+}
+window.addEventListener('scroll', () => { if (siglaAbierta) cerrarSigla(); }, { passive: true });
+
 document.addEventListener('click', (e) => {
+  const sigla = e.target.closest('.sigla');
+  if (sigla) { tocarSigla(sigla); return; }
+  if (siglaAbierta) cerrarSigla();
   if (!e.target.closest('.bar-hit')) mostrarTip(null);
   const tab = e.target.closest('[data-tab]');
   if (tab) { go(tab.dataset.tab); return; }
