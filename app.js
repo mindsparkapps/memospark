@@ -26,7 +26,8 @@
 // 3.6 se quita la cabecita del perrito del veredicto; queda solo el perrito grande
 // 3.7 perrito nuevo de cuerpo entero calcado del personaje de referencia: se aplasta y estira, gira la cabeza
 //     a la pantalla y piensa en una ampolleta (saca la lengua) o en una X (cara triste)
-const APP_VERSION = '3.7';
+// 3.8 carpetas (los mazos importados como «Nombre - …» se agrupan solos) y estrella ⭐ «Para estudiar» en la pantalla principal
+const APP_VERSION = '3.8';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -300,7 +301,7 @@ function renderMazos() {
     return;
   }
 
-  const deckCards = mazos.map(m => {
+  const tarjetaMazo = (m) => {
     const c = conteosMazo(m);
     const tarjetas = tarjetasDe(m.id);
     const prog = tarjetas.map(progresoDe);
@@ -311,7 +312,7 @@ function renderMazos() {
     return `
       <article class="deck">
         <div>
-          <button class="deck-name" type="button" data-open="${esc(m.id)}">${esc(m.nombre)}</button>
+          <div class="deck-top"><button class="deck-name" type="button" data-open="${esc(m.id)}">${esc(m.nombre)}</button>${botonEstrella(m)}</div>
           ${m.descripcion ? `<div class="deck-desc">${esc(m.descripcion.replace(/[#*_`>!\[\]()]/g, ''))}</div>` : ''}
         </div>
         <div class="deck-counts">
@@ -331,7 +332,52 @@ function renderMazos() {
           <button class="btn ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${sesion && sesion.target === m.id && sesion.soloNuevas ? 'data-nuevas="1"' : ''} ${sesion && sesion.target === m.id && sesion.modo != null ? `data-modo="${sesion.modo}"` : ''} ${hay ? '' : 'disabled'}>${hay ? (sesion && sesion.target === m.id ? `Continuar ▶ · ${quedaTxt(sesion)}` : 'Estudiar') : 'Al día ✓'}</button>
         </div>
       </article>`;
+  };
+
+  // Fila compacta (mazos dentro de una carpeta)
+  const filaMazo = (m) => {
+    const c = conteosMazo(m);
+    const n = c.nuevas + c.aprend + c.repaso;
+    const hay = n || (pendientesPorModo(m).some(x => x > 0) ? 1 : 0);
+    const cont = sesion && sesion.target === m.id;
+    return `
+      <div class="deck-row">
+        ${botonEstrella(m)}
+        <button class="deck-name" type="button" data-open="${esc(m.id)}">${esc(m.nombre)}</button>
+        <span class="muted deck-row-n">${hay ? `${n} para hoy` : 'Al día ✓'}</span>
+        <button class="btn sm ${hay ? 'primary' : ''}" type="button" data-study="${esc(m.id)}" ${cont && sesion.soloNuevas ? 'data-nuevas="1"' : ''} ${cont && sesion.modo != null ? `data-modo="${sesion.modo}"` : ''} ${hay ? '' : 'disabled'}>${hay ? (cont ? 'Continuar ▶' : 'Estudiar') : '✓'}</button>
+      </div>`;
+  };
+
+  const favoritos = mazos.filter(m => m.estrella);
+  const sinCarpeta = mazos.filter(m => !m.carpeta);
+  const carpetas = [...new Set(mazos.map(m => m.carpeta).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  const seccionFav = `
+    <section class="fav-sec">
+      <h3 class="sec-title">⭐ Para estudiar</h3>
+      ${favoritos.length ? `<div class="decks">${favoritos.map(tarjetaMazo).join('')}</div>`
+        : `<p class="muted fav-empty">Toca la ☆ de un mazo para que aparezca aquí.</p>`}
+    </section>`;
+  const seccionCarpetas = carpetas.map(nombre => {
+    const ms = mazos.filter(m => m.carpeta === nombre);
+    const pendC = ms.reduce((s, m) => { const c = conteosMazo(m); return s + c.nuevas + c.aprend + c.repaso; }, 0);
+    const abierta = (ajustes.carpetasAbiertas || []).includes(nombre);
+    return `
+      <section class="folder">
+        <button class="folder-head" type="button" data-folder="${esc(nombre)}" aria-expanded="${abierta}">
+          <span class="folder-ico">${abierta ? '📂' : '📁'}</span>
+          <span class="folder-name">${esc(nombre)}</span>
+          <span class="muted folder-meta">${ms.length} ${ms.length === 1 ? 'mazo' : 'mazos'}${pendC ? ` · ${pendC} para hoy` : ''}${ms.some(m => m.estrella) ? ' · ⭐' : ''}</span>
+          <span class="folder-arrow">${abierta ? '▾' : '▸'}</span>
+        </button>
+        ${abierta ? `<div class="folder-body">${ms.map(filaMazo).join('')}</div>` : ''}
+      </section>`;
   }).join('');
+  const seccionLibres = sinCarpeta.length ? `
+    <section class="loose">
+      ${carpetas.length ? '<h3 class="sec-title">Sin carpeta</h3>' : ''}
+      <div class="decks">${sinCarpeta.map(tarjetaMazo).join('')}</div>
+    </section>` : '';
 
   $('#mazos-body').innerHTML = `
     ${sesion ? `<div class="resume">
@@ -345,7 +391,13 @@ function renderMazos() {
       <div class="stat"><div class="v">${total ? Math.round(aciertos / total * 100) + '%' : '—'}</div><div class="l">Aciertos hoy</div></div>
       <div class="stat"><div class="v">${racha()}</div><div class="l">Días seguidos</div></div>
     </div>
-    <div class="decks">${deckCards}</div>`;
+    ${seccionFav}
+    ${carpetas.length ? `<div class="folders">${seccionCarpetas}</div>` : ''}
+    ${seccionLibres}`;
+}
+
+function botonEstrella(m) {
+  return `<button class="star${m.estrella ? ' on' : ''}" type="button" data-star="${esc(m.id)}" aria-pressed="${!!m.estrella}" title="${m.estrella ? 'Quitar de «Para estudiar»' : 'Poner en «Para estudiar»'}">${m.estrella ? '★' : '☆'}</button>`;
 }
 
 /* ---------- Vista: Estadísticas ---------- */
@@ -739,7 +791,10 @@ function renderMazo() {
       <div class="frow" style="align-items:end">
         <label class="f">Tarjetas nuevas por día<input type="number" id="nuevasPorDia" min="0" max="500" value="${m.nuevasPorDia ?? 20}" ${readOnly ? 'disabled' : ''}></label>
         ${modosDe(m).length ? `<label class="f">Tipo de respuesta<select id="modoSelect">${m.modos.map((x, i) => `<option value="${i}" ${i === modoDe(m.id) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}
-        <div class="toolbar" style="grid-column:span ${modosDe(m).length ? 2 : 3};justify-content:flex-end">
+        <label class="f">Carpeta<input type="text" id="carpetaInput" list="carpetasLista" maxlength="60" placeholder="Sin carpeta" value="${esc(m.carpeta || '')}" ${readOnly ? 'disabled' : ''}></label>
+        <datalist id="carpetasLista">${[...new Set([...S.mazos.values()].map(x => x.carpeta).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+        <div class="toolbar" style="grid-column:1/-1;justify-content:flex-end">
+          <button class="btn${m.estrella ? ' primary' : ''}" type="button" data-star="${esc(m.id)}" aria-pressed="${!!m.estrella}">${m.estrella ? '★ En «Para estudiar»' : '☆ Poner en «Para estudiar»'}</button>
           ${(() => { const f = falladasDe(m.id).length; return f ? `<button class="btn" type="button" data-falladas="${esc(m.id)}" title="Repaso aparte de las tarjetas que más fallas">Repasar más falladas (${f})</button>` : ''; })()}
           <button class="btn" type="button" data-act="export" title="Descargar el mazo en el formato .md">Exportar .md</button>
           <button class="btn" type="button" data-act="copy-md" title="Copiar el mazo para pedirle a una IA que lo amplíe o corrija">Copiar para la IA</button>
@@ -759,6 +814,12 @@ function renderMazo() {
     const v = Math.max(0, Math.min(500, parseInt(inp.value, 10) || 0));
     save('mazos', [{ ...S.mazos.get(m.id), nuevasPorDia: v }]);
     toast(`Nuevas por día: ${v}`);
+  });
+  const car = $('#carpetaInput');
+  if (car) car.addEventListener('change', () => {
+    const v = car.value.trim().replace(/\s+/g, ' ');
+    save('mazos', [{ ...S.mazos.get(m.id), carpeta: v }]);
+    toast(v ? `Carpeta: ${v}` : 'Sin carpeta');
   });
   const sel = $('#modoSelect');
   if (sel) sel.addEventListener('change', () => {
@@ -929,10 +990,15 @@ async function confirmarImportar() {
 async function guardarMazos(mazos, fuente) {
   const now = Date.now();
   let totalTarjetas = 0;
+  // Si varios mazos nuevos comparten el texto antes de « - » ("OWASP 2025 - Web…"), van juntos en una carpeta con ese nombre
+  const prefijos = {};
+  mazos.forEach(m => { const i = m.nombre.indexOf(' - '); if (i > 0) (prefijos[m.nombre.slice(0, i).trim()] ||= []).push(m.id); });
+  const carpetaAuto = {};
+  Object.entries(prefijos).forEach(([p, ids]) => { if (ids.length > 1) ids.forEach(id => { carpetaAuto[id] = p; }); });
   for (const m of mazos) {
     const existente = S.mazos.get(m.id);
     await save('mazos', [{
-      ...(existente || { creado: now, nuevasPorDia: 20 }),
+      ...(existente || { creado: now, nuevasPorDia: 20, ...(carpetaAuto[m.id] ? { carpeta: carpetaAuto[m.id] } : {}) }),
       ...(fuente ? { fuente } : {}),
       id: m.id, nombre: m.nombre, descripcion: reemplazarImagenes(m.descripcion),
       modos: m.modos && m.modos.length > 1 ? m.modos : [],
@@ -1742,6 +1808,21 @@ document.addEventListener('click', (e) => {
   if (tab) { go(tab.dataset.tab); return; }
   const g = e.target.closest('[data-go]');
   if (g) { go(g.dataset.go); return; }
+  const star = e.target.closest('[data-star]');
+  if (star) {
+    const mz = S.mazos.get(star.dataset.star);
+    if (mz) { save('mazos', [{ ...mz, estrella: !mz.estrella }]); render(); }
+    return;
+  }
+  const fold = e.target.closest('[data-folder]');
+  if (fold) {
+    const n = fold.dataset.folder;
+    const ab = new Set(ajustes.carpetasAbiertas || []);
+    if (ab.has(n)) ab.delete(n); else ab.add(n);
+    ajustes.carpetasAbiertas = [...ab];
+    guardarAjustes(); render();
+    return;
+  }
   const open = e.target.closest('[data-open]');
   if (open) { go('mazo', { mazo: open.dataset.open }); return; }
   const rv = e.target.closest('[data-revisar]');
