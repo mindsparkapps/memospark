@@ -27,7 +27,8 @@
 // 3.7 perrito nuevo de cuerpo entero calcado del personaje de referencia: se aplasta y estira, gira la cabeza
 //     a la pantalla y piensa en una ampolleta (saca la lengua) o en una X (cara triste)
 // 3.8 carpetas (los mazos importados como «Nombre - …» se agrupan solos) y estrella ⭐ «Para estudiar» en la pantalla principal
-const APP_VERSION = '3.8';
+// 3.9 los mazos sin carpeta quedan en la carpeta por defecto «General»
+const APP_VERSION = '3.9';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
@@ -350,8 +351,8 @@ function renderMazos() {
   };
 
   const favoritos = mazos.filter(m => m.estrella);
-  const sinCarpeta = mazos.filter(m => !m.carpeta);
-  const carpetas = [...new Set(mazos.map(m => m.carpeta).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  // Los mazos sin carpeta caen en la carpeta por defecto, que va al final
+  const carpetas = [...new Set(mazos.map(carpetaDe))].sort((a, b) => (a === CARPETA_DEFECTO) - (b === CARPETA_DEFECTO) || a.localeCompare(b, 'es'));
   const seccionFav = `
     <section class="fav-sec">
       <h3 class="sec-title">⭐ Para estudiar</h3>
@@ -359,7 +360,7 @@ function renderMazos() {
         : `<p class="muted fav-empty">Toca la ☆ de un mazo para que aparezca aquí.</p>`}
     </section>`;
   const seccionCarpetas = carpetas.map(nombre => {
-    const ms = mazos.filter(m => m.carpeta === nombre);
+    const ms = mazos.filter(m => carpetaDe(m) === nombre);
     const pendC = ms.reduce((s, m) => { const c = conteosMazo(m); return s + c.nuevas + c.aprend + c.repaso; }, 0);
     const abierta = (ajustes.carpetasAbiertas || []).includes(nombre);
     return `
@@ -373,11 +374,6 @@ function renderMazos() {
         ${abierta ? `<div class="folder-body">${ms.map(filaMazo).join('')}</div>` : ''}
       </section>`;
   }).join('');
-  const seccionLibres = sinCarpeta.length ? `
-    <section class="loose">
-      ${carpetas.length ? '<h3 class="sec-title">Sin carpeta</h3>' : ''}
-      <div class="decks">${sinCarpeta.map(tarjetaMazo).join('')}</div>
-    </section>` : '';
 
   $('#mazos-body').innerHTML = `
     ${sesion ? `<div class="resume">
@@ -392,9 +388,11 @@ function renderMazos() {
       <div class="stat"><div class="v">${racha()}</div><div class="l">Días seguidos</div></div>
     </div>
     ${seccionFav}
-    ${carpetas.length ? `<div class="folders">${seccionCarpetas}</div>` : ''}
-    ${seccionLibres}`;
+    <div class="folders">${seccionCarpetas}</div>`;
 }
+
+const CARPETA_DEFECTO = 'General';
+const carpetaDe = (m) => m.carpeta || CARPETA_DEFECTO;
 
 function botonEstrella(m) {
   return `<button class="star${m.estrella ? ' on' : ''}" type="button" data-star="${esc(m.id)}" aria-pressed="${!!m.estrella}" title="${m.estrella ? 'Quitar de «Para estudiar»' : 'Poner en «Para estudiar»'}">${m.estrella ? '★' : '☆'}</button>`;
@@ -791,7 +789,7 @@ function renderMazo() {
       <div class="frow" style="align-items:end">
         <label class="f">Tarjetas nuevas por día<input type="number" id="nuevasPorDia" min="0" max="500" value="${m.nuevasPorDia ?? 20}" ${readOnly ? 'disabled' : ''}></label>
         ${modosDe(m).length ? `<label class="f">Tipo de respuesta<select id="modoSelect">${m.modos.map((x, i) => `<option value="${i}" ${i === modoDe(m.id) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}
-        <label class="f">Carpeta<input type="text" id="carpetaInput" list="carpetasLista" maxlength="60" placeholder="Sin carpeta" value="${esc(m.carpeta || '')}" ${readOnly ? 'disabled' : ''}></label>
+        <label class="f">Carpeta<input type="text" id="carpetaInput" list="carpetasLista" maxlength="60" placeholder="${CARPETA_DEFECTO}" value="${esc(m.carpeta || '')}" ${readOnly ? 'disabled' : ''}></label>
         <datalist id="carpetasLista">${[...new Set([...S.mazos.values()].map(x => x.carpeta).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>
         <div class="toolbar" style="grid-column:1/-1;justify-content:flex-end">
           <button class="btn${m.estrella ? ' primary' : ''}" type="button" data-star="${esc(m.id)}" aria-pressed="${!!m.estrella}">${m.estrella ? '★ En «Para estudiar»' : '☆ Poner en «Para estudiar»'}</button>
@@ -819,7 +817,7 @@ function renderMazo() {
   if (car) car.addEventListener('change', () => {
     const v = car.value.trim().replace(/\s+/g, ' ');
     save('mazos', [{ ...S.mazos.get(m.id), carpeta: v }]);
-    toast(v ? `Carpeta: ${v}` : 'Sin carpeta');
+    toast(`Carpeta: ${v || CARPETA_DEFECTO}`);
   });
   const sel = $('#modoSelect');
   if (sel) sel.addEventListener('change', () => {
