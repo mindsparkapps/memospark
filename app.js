@@ -28,11 +28,13 @@
 //     a la pantalla y piensa en una ampolleta (saca la lengua) o en una X (cara triste)
 // 3.8 carpetas (los mazos importados como «Nombre - …» se agrupan solos) y estrella ⭐ «Para estudiar» en la pantalla principal
 // 3.9 los mazos sin carpeta quedan en la carpeta por defecto «General»
-const APP_VERSION = '3.9';
-const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro'];
+// 4.0 menú Pruebas: pruebas de alternativas con temporizador (no se pausa), nota 1 a 7, respuestas en rojo / verde,
+//     «dónde repasar» (video y minuto) y estadísticas de pruebas dentro de Estadísticas (ver pruebas.js)
+const APP_VERSION = '4.0';
+const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro', 'pruebas', 'intentos'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
-const S = { mazos: new Map(), tarjetas: new Map(), progreso: new Map(), dias: new Map(), registro: new Map() };
+const S = { mazos: new Map(), tarjetas: new Map(), progreso: new Map(), dias: new Map(), registro: new Map(), pruebas: new Map(), intentos: new Map() };
 let readOnly = false;
 
 // Ajustes de este dispositivo (no se sincronizan: vibrar en el celular no tiene por qué valer para el PC).
@@ -60,8 +62,8 @@ window.showToast = (msg) => toast(msg);
 /* ---------- Almacenamiento ---------- */
 function openDb() {
   return new Promise((resolve, reject) => {
-    // v2: almacén «registro»
-    const req = indexedDB.open('memospark', 2);
+    // v2: almacén «registro» · v3: almacenes «pruebas» e «intentos»
+    const req = indexedDB.open('memospark', 3);
     req.onupgradeneeded = () => {
       const d = req.result;
       STORES.forEach(s => { if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: 'id' }); });
@@ -234,7 +236,7 @@ function go(v, opts = {}) {
   if (cambia && !opts.atras) { try { history.pushState({ ms: 1, v, mazo: mazoAbierto }, ''); } catch (e) {} }
   $$('section.view').forEach(s => { s.hidden = s.id !== `v-${v}`; });
   document.body.classList.toggle('estudiando', v === 'estudio');
-  const tab = v === 'mazo' || v === 'estudio' || v === 'revisar' ? 'mazos' : v;
+  const tab = v === 'mazo' || v === 'estudio' || v === 'revisar' ? 'mazos' : v === 'rendir' ? 'pruebas' : v === 'intento' ? (PR.volverA === 'stats' ? 'stats' : 'pruebas') : v;
   $$('nav.tabs [data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   render();
   window.scrollTo({ top: 0 });
@@ -253,7 +255,11 @@ function render() {
   const glosario = {};
   S.mazos.forEach(mz => Object.assign(glosario, mz.siglas || {}));
   MazoMD.setSiglas(glosario);
+  if (typeof asegurarReloj === 'function') asegurarReloj(); // pruebas.js: si una prueba en curso se quedó sin tiempo, se entrega sola
   if (vista === 'mazos') renderMazos();
+  else if (vista === 'pruebas') renderPruebas();
+  else if (vista === 'rendir') renderRendir();
+  else if (vista === 'intento') renderIntento();
   else if (vista === 'mazo') renderMazo();
   else if (vista === 'formato') renderFormato();
   else if (vista === 'stats') renderStats();
@@ -416,10 +422,10 @@ function mejorRacha() {
 
 // Gráfico de barras de una sola serie hecho con HTML (se adapta al ancho sin deformar el texto).
 // barras: [{ v, etiqueta, tip }]; cada barra muestra su detalle al pasar el mouse o tocarla.
-function graficoBarras(barras, { cadaEtiqueta = 7, resaltarUltima = false, vacio = 'Sin datos todavía' } = {}) {
+function graficoBarras(barras, { cadaEtiqueta = 7, resaltarUltima = false, vacio = 'Sin datos todavía', tope: topeFijo = 0 } = {}) {
   const max = Math.max(0, ...barras.map(b => b.v));
   if (!max) return `<div class="chart-empty">${vacio}</div>`;
-  const tope = max <= 5 ? max : Math.ceil(max / 5) * 5;
+  const tope = topeFijo || (max <= 5 ? max : Math.ceil(max / 5) * 5);
   return `
     <div class="chart">
       <div class="chart-y"><span>${tope}</span><span>${Math.round(tope / 2)}</span><span>0</span></div>
@@ -436,6 +442,8 @@ function graficoBarras(barras, { cadaEtiqueta = 7, resaltarUltima = false, vacio
 }
 
 function renderStats() {
+  renderStatsSeg(); // pruebas.js: selector Tarjetas | Pruebas (por defecto las de las tarjetas)
+  if (statsTab === 'pruebas') { renderStatsPruebas(); return; }
   const mazos = mazosOrdenados();
   const now = Date.now();
   const hoy = SRS.dayKey(now);
@@ -945,6 +953,7 @@ function analizar(texto) {
     impParsed = null;
     return;
   }
+  if (PruebaMD.esPrueba(texto)) { analizarPrueba(texto); return; } // «# Prueba: …» (pruebas.js)
   const res = MazoMD.parse(texto);
   impParsed = res;
   impMissing = [...new Set(res.mazos.flatMap(m => m.tarjetas.flatMap(t => MazoMD.imageRefs([t.pregunta, t.explicacion, ...t.opciones.map(o => o.t)].join('\n')))))]
@@ -975,6 +984,14 @@ function analizar(texto) {
 }
 
 async function confirmarImportar() {
+  if (impParsed && impParsed.pruebas && impParsed.pruebas.length) {
+    const n = await guardarPruebas(impParsed.pruebas);
+    $('#dlg-import').close();
+    toast(`Importada: ${impParsed.pruebas.length === 1 ? `«${impParsed.pruebas[0].nombre}»` : `${impParsed.pruebas.length} pruebas`} con ${n} preguntas`);
+    impParsed = null;
+    go('pruebas');
+    return;
+  }
   if (!impParsed || !impParsed.mazos.length) return;
   const totalTarjetas = await guardarMazos(impParsed.mazos);
   $('#dlg-import').close();

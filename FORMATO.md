@@ -83,6 +83,32 @@ Cada tarjeta se identifica por el nombre del mazo y el texto de su pregunta (sin
 
 Con **Copiar para la IA** (en el detalle de un mazo) copias el mazo en este formato para pedirle a una IA que lo amplíe o lo corrija.
 
+## Pruebas (menú «Pruebas»)
+
+Una prueba es un `.md` de alternativas que se rinde con temporizador (no se puede pausar), con nota de 1 a 7 (4,0 con 60 %). Se importa con el mismo botón **Importar**; la app la reconoce por el título `# Prueba: Nombre`.
+
+```markdown
+# Prueba: Matemática - Álgebra básica
+
+Tiempo: 45 min
+
+## ¿Cómo se factoriza x² − 9?
+
+- [x] (x − 3)(x + 3)
+- [ ] (x − 3)²
+- [ ] (x − 9)(x + 1)
+- [ ] (x + 9)(x − 1)
+
+Tema: Factorización
+Referencia: Video «Productos notables» — minuto 12:30 (https://youtu.be/ID?t=750)
+Explicación: Es una diferencia de cuadrados.
+```
+
+- `Tiempo: N min` (bajo el título): minutos para rendirla. Sin esa línea se usan 1,5 min por pregunta.
+- `Tema:` agrupa los errores por tema en las estadísticas. `Referencia:` dice dónde repasar (minuto del video, página, enlace); los enlaces salen clicables.
+- Cada vez que se rinde queda un intento con su fecha y nota; en **Estadísticas → Pruebas** se abre de nuevo con lo bueno en verde y lo malo en rojo.
+- Hay un ejemplo en [ejemplos/prueba-matematica.md](ejemplos/prueba-matematica.md). Las instrucciones para la IA están en `formato.js` (`MEMOSPARK_PRUEBA`) y se copian desde el menú Pruebas.
+
 ## Instrucciones para la IA
 
 Reemplaza lo que está entre corchetes y pégalo en la IA:
