@@ -43,12 +43,15 @@ let readOnly = false;
 // salvo que se abra con ?modo=alumno (para probarlo).
 let modo = 'profe';
 const esAlumno = () => modo === 'alumno';
-const VISTAS_ALUMNO = ['pruebas', 'rendir', 'intento', 'stats'];
+const etiquetaModo = () => esAlumno() ? '🎓 Alumno' : '🧑‍🏫 Profe';
+const VISTAS_ALUMNO =['pruebas', 'rendir', 'intento', 'stats'];
 function aplicarModo(m) {
   modo = m === 'alumno' ? 'alumno' : 'profe';
   document.body.classList.toggle('modo-alumno', esAlumno());
+  // Dentro de ZenBan el modo se ve en el botón de la barra de la ventana (junto a ⟳); fuera, en un chip del encabezado
   const chip = $('#modoChip');
-  if (chip) { chip.hidden = !esAlumno(); chip.textContent = '🎓 Modo alumno'; }
+  if (chip) { chip.hidden = IN_ZENBAN; chip.textContent = etiquetaModo(); }
+  if (typeof aplicarEstilo === 'function' && IN_ZENBAN) aplicarEstilo();
   if (esAlumno() && !VISTAS_ALUMNO.includes(vista)) go('pruebas');
 }
 
@@ -2017,8 +2020,9 @@ function aplicarEstilo() {
   const sistema = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   // Dentro de ZenBan solo el estilo de ZenBan sigue su tema; el propio es el claro de siempre (como TablaQuiz)
   r.dataset.theme = IN_ZENBAN ? (z ? (temaHost || sistema) : 'light') : sistema;
-  const label = z ? '🎨 ZenBan' : '🎨 Propio';
-  const title = z ? 'Estilo de ZenBan. Toca para usar el estilo propio de MemoSpark' : 'Estilo propio de MemoSpark. Toca para usar el de ZenBan';
+  const estilo = z ? '🎨 ZenBan' : '🎨 Propio';
+  const label = IN_ZENBAN ? `${etiquetaModo()} · ${estilo}` : estilo;
+  const title = (IN_ZENBAN ? `Estás en modo ${esAlumno() ? 'alumno' : 'profe'}. ` : '') + (z ? 'Estilo de ZenBan. Toca para usar el estilo propio de MemoSpark' : 'Estilo propio de MemoSpark. Toca para usar el de ZenBan');
   const b = $('#estiloBtn'); b.textContent = label; b.title = title;
   if (IN_ZENBAN && ZenBanPlugin.setBarButton) ZenBanPlugin.setBarButton(label, title); // también en la barra de la ventana, junto a ⟳
 }

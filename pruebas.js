@@ -592,4 +592,4 @@ $('#sharePromptPruebaBtn').hidden = !navigator.share;
 setTimeout(() => { if (db || pluginReady) asegurarReloj(); }, 2500);
 
 // Abierta fuera de ZenBan con ?modo=alumno (para probar la vista del alumno); dentro de ZenBan lo decide el permiso del usuario
-if (!IN_ZENBAN) { try { if (new URLSearchParams(location.search).get('modo') === 'alumno') aplicarModo('alumno'); } catch (e) {} }
+if (!IN_ZENBAN) { let m = 'profe'; try { if (new URLSearchParams(location.search).get('modo') === 'alumno') m = 'alumno'; } catch (e) {} aplicarModo(m); }
