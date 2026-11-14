@@ -615,5 +615,16 @@ body.in-zenban header.top{position:static}
   .opt.static.is-ok .t::after{content:" ✓";color:var(--good)}
   .opt.static.is-bad .t::after{content:" ✗";color:var(--bad)}
 }
-/* Modo alumno: solo rinde pruebas y ve sus resultados (lo decide el permiso del usuario en ZenBan) */
+/* Modo alumno: solo rinde pruebas y estudia lo que el profe le asignó (lo decide el permiso del usuario en ZenBan) */
 body.modo-alumno .solo-profe { display: none !important; }
+
+/* Configuración (profe): qué ve cada alumno */
+.c6{grid-column:span 6}
+@media (max-width:860px){.c6{grid-column:span 12}}
+.alumno-card summary{cursor:pointer;display:flex;flex-direction:column;gap:2px;list-style:none}
+.alumno-card summary::-webkit-details-marker{display:none}
+.alumno-card summary h3{margin:0}
+.asig-list{display:flex;flex-direction:column;gap:2px;max-height:260px;overflow:auto}
+.asig-item{display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-radius:8px;cursor:pointer;font-size:.9rem}
+.asig-item:hover{background:var(--accent-soft)}
+.asig-item input{margin-top:3px;accent-color:var(--accent)}

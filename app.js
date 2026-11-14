@@ -32,11 +32,11 @@
 //     nuevo prompt para pedir 10 pruebas por asignatura, y el tiempo de la prueba ya no se inventa (sale del temario)
 // 4.0 menú Pruebas: pruebas de alternativas con temporizador (no se pausa), nota 1 a 7, respuestas en rojo / verde,
 //     «dónde repasar» (video y minuto) y estadísticas de pruebas dentro de Estadísticas (ver pruebas.js)
-const APP_VERSION = '4.1';
-const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro', 'pruebas', 'intentos'];
+const APP_VERSION = '4.2';
+const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro', 'pruebas', 'intentos', 'config'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
-const S = { mazos: new Map(), tarjetas: new Map(), progreso: new Map(), dias: new Map(), registro: new Map(), pruebas: new Map(), intentos: new Map() };
+const S = { mazos: new Map(), tarjetas: new Map(), progreso: new Map(), dias: new Map(), registro: new Map(), pruebas: new Map(), intentos: new Map(), config: new Map() };
 let readOnly = false;
 // Modo profe / alumno. Dentro de ZenBan lo decide el permiso del usuario en el espacio compartido (ver onInit): con «editar» es
 // profe (todo); con «crear» o «solo ver» es alumno (solo rinde pruebas y ve sus resultados). Fuera de ZenBan siempre es profe,
@@ -44,7 +44,17 @@ let readOnly = false;
 let modo = 'profe';
 const esAlumno = () => modo === 'alumno';
 const etiquetaModo = () => esAlumno() ? '🎓 Alumno' : '🧑‍🏫 Profe';
-const VISTAS_ALUMNO =['pruebas', 'rendir', 'intento', 'stats'];
+const VISTAS_ALUMNO = ['mazos', 'mazo', 'estudio', 'pruebas', 'rendir', 'intento', 'stats'];
+// Quién soy (correo que manda ZenBan) y las personas del espacio compartido (solo las ve el profe, para la pestaña Configuración)
+let miEmail = '';
+let miembros = [];
+const claveAlumno = (email = miEmail) => String(email || '').trim().toLowerCase();
+// Qué ve cada alumno lo decide el profe en Configuración: sin asignar no ve nada. El profe ve todo.
+function asignado(tipo, id) {
+  if (!esAlumno()) return true;
+  const c = S.config.get(claveAlumno());
+  return !!c && (c[tipo] || []).includes(id);
+}
 function aplicarModo(m) {
   modo = m === 'alumno' ? 'alumno' : 'profe';
   document.body.classList.toggle('modo-alumno', esAlumno());
@@ -80,13 +90,19 @@ window.showToast = (msg) => toast(msg);
 /* ---------- Almacenamiento ---------- */
 function openDb() {
   return new Promise((resolve, reject) => {
-    // v2: almacén «registro» · v3: almacenes «pruebas» e «intentos»
-    const req = indexedDB.open('memospark', 3);
+    // v2: almacén «registro» · v3: almacenes «pruebas» e «intentos» · v4: almacén «config» (qué ve cada alumno)
+    const req = indexedDB.open('memospark', 4);
     req.onupgradeneeded = () => {
       const d = req.result;
       STORES.forEach(s => { if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: 'id' }); });
     };
-    req.onsuccess = () => resolve(req.result);
+    // Si otra pestaña con la versión anterior sigue abierta, la actualización de la base espera a que se cierre
+    req.onblocked = () => { try { toast('Cierra las otras pestañas de MemoSpark para terminar de actualizar'); } catch (e) {} };
+    req.onsuccess = () => {
+      // Una pestaña con esta versión suelta la base cuando otra pestaña más nueva la necesita actualizar
+      req.result.onversionchange = () => { req.result.close(); };
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -192,7 +208,7 @@ async function save(store, puts = [], dels = []) {
 }
 
 /* ---------- Consultas ---------- */
-const mazosOrdenados = () => [...S.mazos.values()].sort((a, b) => (a.creado || 0) - (b.creado || 0));
+const mazosOrdenados = () => [...S.mazos.values()].filter(m => asignado('mazos', m.id)).sort((a, b) => (a.creado || 0) - (b.creado || 0));
 const tarjetasDe = (mazoId) => [...S.tarjetas.values()].filter(t => t.mazoId === mazoId).sort((a, b) => a.orden - b.orden);
 // Cada tipo de respuesta de un mazo lleva su propio progreso y su propia meta diaria (el primero usa las claves de siempre):
 // así se pueden practicar en paralelo. En memoria el progreso conserva el id de la tarjeta; solo la clave guardada cambia.
@@ -281,6 +297,7 @@ function render() {
   else if (vista === 'intento') renderIntento();
   else if (vista === 'mazo') renderMazo();
   else if (vista === 'formato') renderFormato();
+  else if (vista === 'config') renderConfig(); // alumnos.js
   else if (vista === 'stats') renderStats();
   else if (vista === 'revisar') renderRevisar();
   else if (vista === 'estudio' && !study) go('mazos');
@@ -316,8 +333,8 @@ function renderMazos() {
       <div class="empty">
         <div style="font-size:2.6rem">🃏</div>
         <h3>Aún no tienes mazos</h3>
-        <p>Pídele a cualquier IA un mazo con el formato de MemoSpark, guárdalo como <code>.md</code> e impórtalo. La app te irá mostrando cada tarjeta justo antes de que la olvides.</p>
-        <div class="toolbar" style="justify-content:center">
+        ${esAlumno() ? '<p>Tu profe todavía no te asignó mazos. Cuando lo haga aparecerán aquí.</p>' : '<p>Pídele a cualquier IA un mazo con el formato de MemoSpark, guárdalo como <code>.md</code> e impórtalo. La app te irá mostrando cada tarjeta justo antes de que la olvides.</p>'}
+        <div class="toolbar solo-profe" style="justify-content:center">
           <button class="btn primary" type="button" data-go="formato">Crear con IA</button>
           <button class="btn" type="button" data-act="copy-prompt">📋 Copiar instrucciones para la IA</button>
           <button class="btn" type="button" data-act="import">Importar .md</button>
@@ -812,7 +829,7 @@ function renderMazo() {
           <button class="btn primary sm" type="button" data-estudiar-modo="${i}" ${n || cont ? '' : 'disabled'}>${cont ? `Continuar ▶ · ${quedaTxt(sp)}` : 'Estudiar'}</button></div>`;
       }).join(''); })()}
     </div>` : ''}
-    <div class="card">
+    <div class="card solo-profe">
       <div class="frow" style="align-items:end">
         <label class="f">Tarjetas nuevas por día<input type="number" id="nuevasPorDia" min="0" max="500" value="${m.nuevasPorDia ?? 20}" ${readOnly ? 'disabled' : ''}></label>
         ${modosDe(m).length ? `<label class="f">Tipo de respuesta<select id="modoSelect">${m.modos.map((x, i) => `<option value="${i}" ${i === modoDe(m.id) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}
@@ -829,7 +846,7 @@ function renderMazo() {
       </div>
       <p class="muted" style="font-size:.8rem;margin-top:10px">Para cambiar las tarjetas, edita el .md (o pídeselo a una IA) y vuelve a importarlo: las preguntas que no cambian conservan su progreso.</p>
     </div>
-    <div class="card rev-entry">
+    <div class="card rev-entry solo-profe">
       <div class="grow"><b>Revisar las ${tarjetas.length} tarjetas</b><span>Imagen, pregunta y respuesta de cada una, con sus veces vistas y su % de acierto. Puedes ver cada tarjeta resuelta o probarla.</span></div>
       <button class="btn primary" type="button" data-revisar="${esc(m.id)}">📖 Revisar mazo</button>
     </div>`;
@@ -2040,8 +2057,10 @@ aplicarEstilo();
 if (IN_ZENBAN) {
   document.body.classList.add('in-zenban');
   revisarVersionPublicada();
-  ZenBanPlugin.onInit(({ state, theme, readOnly: ro, nivel }) => {
+  ZenBanPlugin.onInit(({ state, theme, readOnly: ro, nivel, email, miembros: mb }) => {
     readOnly = !!ro;
+    miEmail = claveAlumno(email);
+    miembros = Array.isArray(mb) ? mb : [];
     // nivel = permiso del usuario en ZenBan: «edit» profe; «create» o «view» alumno. ZenBan antiguo (sin nivel) = profe.
     aplicarModo(nivel && nivel !== 'edit' ? 'alumno' : 'profe');
     $('#readonlyBar').hidden = !readOnly;

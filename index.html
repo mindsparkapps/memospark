@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=33">
+  <link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
 <header class="top">
@@ -26,10 +26,11 @@
       <span><h1>MemoSpark</h1><small>Tarjetas con repetición espaciada</small></span>
     </button>
     <nav class="tabs" role="tablist" aria-label="Secciones">
-      <button role="tab" class="solo-profe" data-tab="mazos" aria-selected="true">Mazos</button>
+      <button role="tab" data-tab="mazos" aria-selected="true">Mazos</button>
       <button role="tab" data-tab="pruebas" aria-selected="false">Pruebas</button>
       <button role="tab" data-tab="stats" aria-selected="false">Estadísticas</button>
       <button role="tab" class="solo-profe" data-tab="formato" aria-selected="false">Crear con IA</button>
+      <button role="tab" class="solo-profe" data-tab="config" aria-selected="false">Configuración</button>
     </nav>
     <button class="install-btn" id="installBtn" type="button" hidden title="Instalar la app en este dispositivo"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Instalar</span></button>
     <span class="chip" id="modoChip" hidden></span>
@@ -58,8 +59,8 @@
     <div class="head-row">
       <div><div class="eyebrow" id="hoyEyebrow">Hoy</div><h2>Tus mazos</h2></div>
       <div class="toolbar">
-        <button class="btn" type="button" data-act="copy-prompt" title="Copiar las instrucciones para pedirle un mazo a cualquier IA">📋 Copiar instrucciones para la IA</button>
-        <button class="btn" type="button" data-act="import">Importar .md</button>
+        <button class="btn solo-profe" type="button" data-act="copy-prompt" title="Copiar las instrucciones para pedirle un mazo a cualquier IA">📋 Copiar instrucciones para la IA</button>
+        <button class="btn solo-profe" type="button" data-act="import">Importar .md</button>
         <button class="btn primary" type="button" data-act="study-all" id="studyAllBtn">Estudiar todo</button>
       </div>
     </div>
@@ -135,6 +136,11 @@
   <!-- RESULTADO DE UNA PRUEBA -->
   <section class="view" id="v-intento" hidden>
     <div id="intento-body"></div>
+  </section>
+
+  <!-- CONFIGURACIÓN: qué ve cada alumno (solo el profe) -->
+  <section class="view" id="v-config" hidden>
+    <div id="config-body"></div>
   </section>
 
   <!-- CREAR CON IA -->
@@ -267,13 +273,14 @@
 <div class="bar-tip" id="barTip" role="tooltip" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="zenban-plugin-sdk.js?v=33"></script>
-<script src="config.js?v=33"></script>
-<script src="formato.js?v=33"></script>
-<script src="mazo-md.js?v=33"></script>
-<script src="srs.js?v=33"></script>
-<script src="sync.js?v=33"></script>
-<script src="app.js?v=33"></script>
-<script src="pruebas.js?v=33"></script>
+<script src="zenban-plugin-sdk.js?v=34"></script>
+<script src="config.js?v=34"></script>
+<script src="formato.js?v=34"></script>
+<script src="mazo-md.js?v=34"></script>
+<script src="srs.js?v=34"></script>
+<script src="sync.js?v=34"></script>
+<script src="app.js?v=34"></script>
+<script src="pruebas.js?v=34"></script>
+<script src="alumnos.js?v=34"></script>
 </body>
 </html>

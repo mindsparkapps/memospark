@@ -62,8 +62,11 @@ try { PR.enCurso = JSON.parse(localStorage.getItem(ENCURSO_KEY) || 'null'); } ca
 // Al reabrir la app el tiempo de la prueba siguió corriendo, pero el rato con la app cerrada no se cuenta a ninguna pregunta
 if (PR.enCurso) { PR.idx = PR.enCurso.idx || 0; PR.enCurso.qDesde = Date.now(); }
 
-const pruebasOrdenadas = () => [...S.pruebas.values()].sort((a, b) => (a.creado || 0) - (b.creado || 0));
-const intentosDe = (pruebaId) => [...S.intentos.values()].filter(i => !pruebaId || i.pruebaId === pruebaId).sort((a, b) => a.ts - b.ts);
+// El alumno solo ve las pruebas que el profe le asignó en Configuración, y solo sus propios intentos
+const pruebasOrdenadas = () => [...S.pruebas.values()].filter(p => asignado('pruebas', p.id)).sort((a, b) => (a.creado || 0) - (b.creado || 0));
+const intentosDe = (pruebaId) => [...S.intentos.values()]
+  .filter(i => (!pruebaId || i.pruebaId === pruebaId) && (!esAlumno() || (i.email || '') === miEmail))
+  .sort((a, b) => a.ts - b.ts);
 
 function notaDe(buenas, total) {
   if (!total) return 1;
@@ -177,7 +180,7 @@ function guardarEnCurso() {
 
 function pedirInicio(id) {
   const p = S.pruebas.get(id);
-  if (!p || PR.enCurso) return;
+  if (!p || PR.enCurso || !asignado('pruebas', id)) return;
   PR.iniciar = id;
   $('#iniciarPrueba').innerHTML = `<b>${esc(p.nombre)}</b>: ${plural(p.preguntas.length, 'pregunta', 'preguntas')} de alternativas en <b>${p.minutos} minutos</b>.<br><br>Al empezar corre el tiempo y <b>no se puede pausar</b>, ni siquiera si cierras la app. Puedes ir y volver entre las preguntas y cambiar tus respuestas hasta entregar o hasta que se acabe el tiempo.`;
   $('#dlg-prueba').showModal();
@@ -308,7 +311,7 @@ function entregarPrueba(agotado) {
   });
   const total = preguntas.length;
   const intento = {
-    id: 'i' + now.toString(36) + Math.random().toString(36).slice(2, 6), pruebaId: e.pruebaId, nombre: e.nombre,
+    id: 'i' + now.toString(36) + Math.random().toString(36).slice(2, 6), pruebaId: e.pruebaId, nombre: e.nombre, email: miEmail,
     ts: now, inicio: e.inicio, limiteMs: e.limiteMs, usadoMs: Math.min(now - e.inicio, e.limiteMs), agotado: !!agotado,
     buenas, malas, blancas, total, nota: notaDe(buenas, total), preguntas
   };
@@ -592,4 +595,12 @@ $('#sharePromptPruebaBtn').hidden = !navigator.share;
 setTimeout(() => { if (db || pluginReady) asegurarReloj(); }, 2500);
 
 // Abierta fuera de ZenBan con ?modo=alumno (para probar la vista del alumno); dentro de ZenBan lo decide el permiso del usuario
-if (!IN_ZENBAN) { let m = 'profe'; try { if (new URLSearchParams(location.search).get('modo') === 'alumno') m = 'alumno'; } catch (e) {} aplicarModo(m); }
+// (con ?alumno=correo se prueba como ese alumno)
+if (!IN_ZENBAN) {
+  let m = 'profe';
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('modo') === 'alumno' || q.get('alumno')) { m = 'alumno'; miEmail = claveAlumno(q.get('alumno')); }
+  } catch (e) {}
+  aplicarModo(m);
+}
