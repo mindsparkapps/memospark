@@ -615,3 +615,5 @@ body.in-zenban header.top{position:static}
   .opt.static.is-ok .t::after{content:" ✓";color:var(--good)}
   .opt.static.is-bad .t::after{content:" ✗";color:var(--bad)}
 }
+/* Modo alumno: solo rinde pruebas y ve sus resultados (lo decide el permiso del usuario en ZenBan) */
+body.modo-alumno .solo-profe { display: none !important; }

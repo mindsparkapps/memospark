@@ -104,7 +104,7 @@ Referencia: Video «Productos notables» — minuto 12:30 (https://youtu.be/ID?t
 Explicación: Es una diferencia de cuadrados.
 ```
 
-- `Tiempo: N min` (bajo el título): minutos para rendirla. Sin esa línea se usan 1,5 min por pregunta.
+- `Tiempo: N min` (bajo el título): minutos para rendirla. Es obligatoria: el tiempo sale del temario y no se inventa uno (sin esa línea la prueba no se importa).
 - `Tema:` agrupa los errores por tema en las estadísticas. `Referencia:` dice dónde repasar (minuto del video, página, enlace); los enlaces salen clicables.
 - Cada vez que se rinde queda un intento con su fecha y nota; en **Estadísticas → Pruebas** se abre de nuevo con lo bueno en verde y lo malo en rojo.
 - Hay un ejemplo en [ejemplos/prueba-matematica.md](ejemplos/prueba-matematica.md). Las instrucciones para la IA están en `formato.js` (`MEMOSPARK_PRUEBA`) y se copian desde el menú Pruebas.

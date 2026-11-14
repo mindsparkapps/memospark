@@ -43,9 +43,10 @@ const PruebaMD = (() => {
         const x = meta(t.explicacion);
         preguntas.push({ id: t.id, enunciado: t.pregunta, opciones: t.opciones.map(o => ({ t: o.t, ok: o.ok })), explicacion: x.explicacion, tema: x.tema, ref: x.ref });
       });
-      if (!minutos) minutos = Math.max(5, Math.round(preguntas.length * 1.5));
+      // El tiempo sale del temario: sin «Tiempo: N min» no se inventa uno
+      if (!minutos && preguntas.length) { avisos.push(`«${nombre}» no tiene la línea «Tiempo: N min» bajo el título, no se importó.`); return null; }
       return { id: 'p' + MazoMD.hash('prueba|' + normN(nombre)), nombre, descripcion: desc, minutos, preguntas };
-    }).filter(p => p.preguntas.length);
+    }).filter(p => p && p.preguntas.length);
     return { pruebas, avisos };
   }
   return { esPrueba, parse };
@@ -58,6 +59,8 @@ const EXIGENCIA = 0.6; // nota 4,0 con el 60 % de las preguntas buenas (escala 1
 let statsTab = 'tarjetas';
 
 try { PR.enCurso = JSON.parse(localStorage.getItem(ENCURSO_KEY) || 'null'); } catch (e) {}
+// Al reabrir la app el tiempo de la prueba siguió corriendo, pero el rato con la app cerrada no se cuenta a ninguna pregunta
+if (PR.enCurso) { PR.idx = PR.enCurso.idx || 0; PR.enCurso.qDesde = Date.now(); }
 
 const pruebasOrdenadas = () => [...S.pruebas.values()].sort((a, b) => (a.creado || 0) - (b.creado || 0));
 const intentosDe = (pruebaId) => [...S.intentos.values()].filter(i => !pruebaId || i.pruebaId === pruebaId).sort((a, b) => a.ts - b.ts);
@@ -124,11 +127,8 @@ function analizarPrueba(texto) {
 function promptPrueba() {
   const v = (id, d) => ($(`#${id}`).value || '').trim() || d;
   return window.MEMOSPARK_PRUEBA
-    .replace('[TEMA]', v('pTema', '[TEMA]'))
-    .replace('[NÚMERO]', v('pCant', '20'))
-    .replace('[NIVEL]', v('pNivel', 'general'))
-    .replace(/\[MINUTOS\]/g, v('pMin', '30'))
-    .replace('[MATERIAL]', v('pMaterial', 'ninguno en particular (usa tu conocimiento; en «Referencia:» indica el tema o capítulo donde se estudia)'))
+    .replace('[ASIGNATURA]', () => v('pTema', '[Escribe aquí la asignatura y curso, ej: Matemáticas 8° Básico / Ciencias Naturales 1° Medio]'))
+    .replace('[MATERIAL]', () => v('pMaterial', 'el temario oficial y los videos/materiales cargados en el cuaderno'))
     + (v('pExtra', '') ? `\n\nIndicaciones extra: ${v('pExtra', '')}` : '');
 }
 
@@ -159,7 +159,7 @@ function renderPruebas() {
         <div class="muted" style="font-size:.82rem">${ult ? `Última nota: <b style="color:${colorNota(ult.nota)}">${fmtNota(ult.nota)}</b> · ${esc(fmtFecha(ult.ts))}` : 'Aún no la has rendido'}</div>
         <div class="deck-foot">
           <button class="btn ghost sm" type="button" data-pr="stats" data-id="${esc(p.id)}" ${its.length ? '' : 'disabled'}>Estadísticas</button>
-          <button class="btn ghost sm danger" type="button" data-pr="borrar" data-id="${esc(p.id)}" ${readOnly ? 'disabled' : ''}>Eliminar</button>
+          ${esAlumno() ? '' : `<button class="btn ghost sm danger" type="button" data-pr="borrar" data-id="${esc(p.id)}" ${readOnly ? 'disabled' : ''}>Eliminar</button>`}
           <span class="grow"></span>
           <button class="btn primary" type="button" data-pr="rendir" data-id="${esc(p.id)}" ${en ? 'disabled title="Termina primero la prueba en curso"' : ''}>Rendir</button>
         </div>
@@ -167,7 +167,7 @@ function renderPruebas() {
   }).join('');
   $('#pruebas-body').innerHTML = reanudar + (pruebas.length
     ? `<div class="decks">${tarjetas}</div>`
-    : `<div class="empty"><div style="font-size:2.6rem">📝</div><h3>Aún no tienes pruebas</h3><p>Pídele a una IA una prueba con el formato de MemoSpark (abajo) e impórtala. La rindes con un temporizador que no se puede pausar, como una prueba real, y después ves tu nota y dónde repasar lo que fallaste.</p></div>`);
+    : `<div class="empty"><div style="font-size:2.6rem">📝</div><h3>Aún no tienes pruebas</h3><p>${esAlumno() ? 'Tu profe aún no ha cargado pruebas aquí. Cuando las cargue las rindes con un temporizador que no se puede pausar y después ves tu nota, el tiempo en cada pregunta y dónde repasar.' : 'Pídele a una IA una prueba con el formato de MemoSpark (abajo) e impórtala. La rindes con un temporizador que no se puede pausar, como una prueba real, y después ves tu nota y dónde repasar lo que fallaste.'}</p></div>`);
 }
 
 /* ---------- Rendir una prueba ---------- */
@@ -188,7 +188,7 @@ function iniciarPrueba() {
   $('#dlg-prueba').close();
   if (!p || PR.enCurso) return;
   PR.enCurso = {
-    pruebaId: p.id, nombre: p.nombre, inicio: Date.now(), limiteMs: p.minutos * 60000, resp: {},
+    pruebaId: p.id, nombre: p.nombre, inicio: Date.now(), limiteMs: p.minutos * 60000, resp: {}, t: {}, idx: 0, qDesde: Date.now(),
     preguntas: p.preguntas.map(q => ({ id: q.id, enunciado: q.enunciado, explicacion: q.explicacion || '', tema: q.tema || '', ref: q.ref || '', opciones: shuffle(q.opciones.map(o => ({ t: o.t, ok: o.ok }))) }))
   };
   PR.idx = 0;
@@ -215,6 +215,24 @@ function tick() {
   }
   const q = $('#pruebaQueda');
   if (q) q.textContent = fmtTiempo(resta);
+}
+
+// Tiempo en cada pregunta: lo que pasa desde que se abrió la pregunta actual se le suma a ella al cambiar de pregunta o entregar
+function cerrarTramo() {
+  const e = PR.enCurso;
+  if (!e) return;
+  const now = Date.now(), q = e.preguntas[PR.idx];
+  if (q) { e.t = e.t || {}; e.t[q.id] = (e.t[q.id] || 0) + Math.max(0, now - (e.qDesde || now)); }
+  e.qDesde = now;
+}
+function irAPregunta(i) {
+  const e = PR.enCurso;
+  if (!e) return;
+  cerrarTramo();
+  PR.idx = Math.min(Math.max(0, i), e.preguntas.length - 1);
+  e.idx = PR.idx;
+  guardarEnCurso();
+  pintarPregunta();
 }
 
 const respondidas = (e) => e.preguntas.filter(q => (e.resp[q.id] || []).length).length;
@@ -279,13 +297,14 @@ function elegirRespuesta(i) {
 function entregarPrueba(agotado) {
   const e = PR.enCurso;
   if (!e) return;
+  cerrarTramo();
   const now = Date.now();
   let buenas = 0, malas = 0, blancas = 0;
   const preguntas = e.preguntas.map(q => {
     const sel = new Set(e.resp[q.id] || []);
     const estado = !sel.size ? 'blanco' : q.opciones.every((o, i) => o.ok === sel.has(i)) ? 'ok' : 'mal';
     if (estado === 'ok') buenas++; else if (estado === 'mal') malas++; else blancas++;
-    return { id: q.id, enunciado: q.enunciado, explicacion: q.explicacion, tema: q.tema, ref: q.ref, estado, opciones: q.opciones.map((o, i) => ({ t: o.t, ok: o.ok, sel: sel.has(i) })) };
+    return { id: q.id, enunciado: q.enunciado, explicacion: q.explicacion, tema: q.tema, ref: q.ref, estado, ms: (e.t && e.t[q.id]) || 0, opciones: q.opciones.map((o, i) => ({ t: o.t, ok: o.ok, sel: sel.has(i) })) };
   });
   const total = preguntas.length;
   const intento = {
@@ -328,6 +347,19 @@ function barraTemas(filas) {
   }).join('')}</div>`;
 }
 
+// Preguntas ordenadas de la que más tiempo tomó a la que menos. filas: [{ n, q, ms, det }]
+function tablaTiempos(filas, colTiempo) {
+  const max = Math.max(...filas.map(f => f.ms), 1);
+  return `<div class="table-wrap"><table class="log-table rep-table">
+    <thead><tr><th>N.º</th><th>Pregunta</th><th>${colTiempo}</th><th>Resultado</th></tr></thead>
+    <tbody>${filas.map(f => `<tr>
+      <td class="num">${f.n}</td>
+      <td class="rep-q"><span>${MazoMD.inline(primeraLinea(f.q.enunciado), {}, { siglas: false })}</span></td>
+      <td style="white-space:nowrap"><b>${fmtTiempo(f.ms)}</b><div class="meter" style="height:6px;margin-top:4px;min-width:70px"><i style="width:${(f.ms / max * 100).toFixed(1)}%;background:var(--accent)"></i></div></td>
+      <td style="white-space:nowrap">${f.det}</td></tr>`).join('')}</tbody></table></div>`;
+}
+const detEstado = (e) => { const [txt, c] = ESTADO[e]; return `<span class="chip st-${c}">${txt}</span>`; };
+
 function renderIntento() {
   const it = S.intentos.get(PR.intento);
   if (!it) { go('pruebas'); return; }
@@ -337,13 +369,14 @@ function renderIntento() {
   it.preguntas.forEach(q => { if (!q.tema) return; const t = temas[q.tema] || (temas[q.tema] = { tema: q.tema, ok: 0, mal: 0 }); if (q.estado === 'ok') t.ok++; else t.mal++; });
   const filasTemas = Object.values(temas).sort((a, b) => b.mal - a.mal || b.ok - a.ok);
   const lista = it.preguntas.map((q, i) => ({ q, n: i + 1 })).filter(x => PR.filtro === 'todas' || x.q.estado !== 'ok');
+  const conTiempo = it.preguntas.some(q => q.ms > 0); // los intentos anteriores a medir el tiempo no lo tienen
   $('#intento-body').innerHTML = `
     <div class="toolbar"><button class="btn ghost sm" type="button" data-pr="${PR.volverA === 'stats' ? 'stats-lista' : 'lista'}">← ${PR.volverA === 'stats' ? 'Estadísticas' : 'Pruebas'}</button></div>
     <div class="head-row">
       <div><div class="eyebrow">${esc(it.nombre)} · ${esc(fmtFecha(it.ts))}</div><h2>Resultado de la prueba</h2></div>
       <div class="toolbar">
         <button class="btn" type="button" data-pr="rendir" data-id="${esc(it.pruebaId)}" ${S.pruebas.has(it.pruebaId) && !PR.enCurso ? '' : 'disabled'}>Rendirla otra vez</button>
-        <button class="btn danger" type="button" data-pr="borrar-intento" data-id="${esc(it.id)}" ${readOnly ? 'disabled' : ''}>Eliminar este intento</button>
+        ${esAlumno() ? '' : `<button class="btn danger" type="button" data-pr="borrar-intento" data-id="${esc(it.id)}" ${readOnly ? 'disabled' : ''}>Eliminar este intento</button>`}
       </div>
     </div>
     ${it.agotado ? '<div class="imp-warn" style="margin:0">⏱ Se acabó el tiempo y la prueba se entregó sola con lo que estaba respondido.</div>' : ''}
@@ -367,6 +400,10 @@ function renderIntento() {
         <tbody>${malas.map(x => filaRepasar(x.q, x.n)).join('')}</tbody>
       </table></div></div>` : '<div class="card"><div class="chart-empty" style="height:90px">¡Sin errores! Todas correctas 🎯</div></div>'}
     ${filasTemas.length ? `<div class="card"><div class="card-h"><h3>Resultado por tema</h3></div>${barraTemas(filasTemas)}</div>` : ''}
+    ${conTiempo ? `<div class="card">
+      <div class="card-h"><h3>Tiempo por pregunta</h3><span class="chip">De la más lenta a la más rápida</span></div>
+      <p class="muted" style="font-size:.84rem;margin:-4px 0 10px">Cuánto estuviste en cada pregunta. Las primeras son las que más te costaron.</p>
+      ${tablaTiempos(it.preguntas.map((q, i) => ({ n: i + 1, q, ms: q.ms || 0, det: detEstado(q.estado) })).sort((a, b) => b.ms - a.ms), 'Tiempo')}</div>` : ''}
     <div class="card">
       <div class="card-h"><h3>Revisión pregunta por pregunta</h3>
         <div class="seg"><button type="button" data-pr="filtro" data-f="todas" aria-selected="${PR.filtro === 'todas'}">Todas</button><button type="button" data-pr="filtro" data-f="falladas" aria-selected="${PR.filtro !== 'todas'}">Falladas (${malas.length})</button></div>
@@ -374,7 +411,7 @@ function renderIntento() {
       <div class="rev-list">${lista.map(({ q, n }) => {
         const [txt, c] = ESTADO[q.estado];
         return `<article class="rev-q ${q.estado}" id="rq${n - 1}">
-          <div class="face-tag"><span class="chip">Pregunta ${n}</span><span class="chip st-${c}">${txt}</span></div>
+          <div class="face-tag"><span class="chip">Pregunta ${n}</span><span class="chip st-${c}">${txt}</span>${conTiempo ? `<span class="chip">⏱ ${fmtTiempo(q.ms || 0)}</span>` : ''}</div>
           <div class="qtext">${MazoMD.render(q.enunciado, {}, { siglas: false })}</div>
           <div class="opts">${q.opciones.map((o, i) => {
             const c2 = o.ok ? 'is-ok' : o.sel ? 'is-bad' : '';
@@ -390,6 +427,7 @@ function renderIntento() {
 
 /* ---------- Estadísticas de pruebas (se ven desde la pestaña Estadísticas) ---------- */
 function renderStatsSeg() {
+  if (esAlumno()) { statsTab = 'pruebas'; $('#stats-seg').innerHTML = ''; return; } // el alumno solo tiene estadísticas de pruebas
   $('#stats-seg').innerHTML = `<div class="seg" role="tablist" aria-label="Tipo de estadísticas">
     <button type="button" data-statstab="tarjetas" aria-selected="${statsTab === 'tarjetas'}">Tarjetas</button>
     <button type="button" data-statstab="pruebas" aria-selected="${statsTab === 'pruebas'}">Pruebas</button></div>`;
@@ -456,12 +494,17 @@ function renderStatsPruebas() {
   const temas = {}, preg = new Map();
   its.forEach(i => i.preguntas.forEach(q => {
     if (q.tema) { const t = temas[q.tema] || (temas[q.tema] = { tema: q.tema, ok: 0, mal: 0 }); if (q.estado === 'ok') t.ok++; else t.mal++; }
-    const p = preg.get(q.id) || { q, mal: 0, total: 0 };
+    const p = preg.get(q.id) || { q, mal: 0, total: 0, ms: 0, conMs: 0 };
     p.q = q; p.total++; if (q.estado !== 'ok') p.mal++;
+    if (q.ms > 0) { p.ms += q.ms; p.conMs++; }
     preg.set(q.id, p);
   }));
   const filasTemas = Object.values(temas).filter(t => t.mal).sort((a, b) => b.mal / (b.ok + b.mal) - a.mal / (a.ok + a.mal) || b.mal - a.mal);
   const falladas = [...preg.values()].filter(p => p.mal).sort((a, b) => b.mal / b.total - a.mal / a.total || b.mal - a.mal).slice(0, 15);
+  // El número es la posición de la pregunta en la última vez que se rindió la prueba
+  const ultimo = its[its.length - 1];
+  const lentas = [...preg.values()].filter(p => p.conMs).map(p => ({ ...p, n: ultimo.preguntas.findIndex(q => q.id === p.q.id) + 1 || '—' }))
+    .sort((a, b) => b.ms / b.conMs - a.ms / a.conMs).slice(0, 15);
   body.innerHTML = `
     <div class="toolbar"><button class="btn ghost sm" type="button" data-pr="stats-lista">← Todas las pruebas</button></div>
     <div class="head-row"><div><div class="eyebrow">Estadísticas de la prueba</div><h3 style="font-size:1.4rem">📝 ${esc(its[its.length - 1].nombre)}</h3></div></div>
@@ -480,6 +523,9 @@ function renderStatsPruebas() {
           <td>${p.q.tema ? esc(p.q.tema) : '<span class="muted">—</span>'}</td>
           <td class="rep-r">${p.q.ref ? refHtml(p.q.ref) : '<span class="muted">Sin referencia</span>'}</td></tr>`).join('')}</tbody></table></div>`
       : '<div class="chart-empty" style="height:90px">Aún no has fallado ninguna pregunta 🎯</div>'}</div>
+    ${lentas.length ? `<div class="card"><div class="card-h"><h3>Preguntas que más tiempo tomaron</h3><span class="chip">${lentas.length >= 15 ? 'Las 15 primeras' : plural(lentas.length, 'pregunta', 'preguntas')}</span></div>
+      <p class="muted chart-sub">Tiempo promedio por pregunta en todos los intentos, de mayor a menor.</p>
+      ${tablaTiempos(lentas.map(p => ({ n: p.n, q: p.q, ms: p.ms / p.conMs, det: `${p.mal} mal de ${p.total}` })), 'Promedio')}</div>` : ''}
     <div class="card"><div class="card-h"><h3>Historial</h3></div>${listaIntentos(its)}</div>`;
 }
 
@@ -497,9 +543,9 @@ document.addEventListener('click', (e) => {
     case 'stats': statsTab = 'pruebas'; PR.statsSel = id; go('stats'); break;
     case 'stats-lista': statsTab = 'pruebas'; PR.statsSel = null; go('stats'); break;
     case 'abrir': PR.intento = id; PR.filtro = 'todas'; PR.volverA = 'stats'; go('intento'); break;
-    case 'ir': PR.idx = +b.dataset.i; pintarPregunta(); break;
-    case 'ant': PR.idx--; pintarPregunta(); break;
-    case 'sig': PR.idx++; pintarPregunta(); break;
+    case 'ir': irAPregunta(+b.dataset.i); break;
+    case 'ant': irAPregunta(PR.idx - 1); break;
+    case 'sig': irAPregunta(PR.idx + 1); break;
     case 'opt': elegirRespuesta(+b.dataset.i); break;
     case 'entregar': {
       const falta = PR.enCurso ? PR.enCurso.preguntas.length - respondidas(PR.enCurso) : 0;
@@ -514,6 +560,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'borrar': {
+      if (esAlumno()) break;
       const p = S.pruebas.get(id);
       if (p) confirmarConBoton(b, '¿Eliminar? Toca otra vez', async () => {
         await save('intentos', [], intentosDe(id).map(i => i.id));
@@ -523,6 +570,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'borrar-intento':
+      if (esAlumno()) break;
       confirmarConBoton(b, '¿Eliminar? Toca otra vez', async () => {
         await save('intentos', [], [id]);
         toast('Intento eliminado'); go(PR.volverA === 'stats' ? 'stats' : 'pruebas');
@@ -535,10 +583,13 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-act="copy-prompt-prueba"]')) copiar(promptPrueba(), $('#pTema').value.trim() ? 'Instrucciones copiadas: pégalas en tu IA' : 'Instrucciones copiadas: pégalas en tu IA y cambia [TEMA] por tu tema');
   if (e.target.closest('[data-act="share-prompt-prueba"]')) navigator.share({ title: 'Prueba para MemoSpark', text: promptPrueba() }).catch(() => {});
 });
-['pTema', 'pCant', 'pNivel', 'pMin', 'pMaterial', 'pExtra'].forEach(id => $(`#${id}`).addEventListener('input', () => { $('#promptPrueba').textContent = promptPrueba(); }));
+['pTema', 'pMaterial', 'pExtra'].forEach(id => $(`#${id}`).addEventListener('input', () => { $('#promptPrueba').textContent = promptPrueba(); }));
 $('#sharePromptPruebaBtn').hidden = !navigator.share;
 
 // El reloj sigue corriendo aunque la app estuviera cerrada: render() (app.js) llama a asegurarReloj() cuando ya cargaron
 // los datos, y ahí se entrega sola la prueba que ya se quedó sin tiempo. Si los datos llegaron antes que este script,
 // se revisa de nuevo un poco después.
 setTimeout(() => { if (db || pluginReady) asegurarReloj(); }, 2500);
+
+// Abierta fuera de ZenBan con ?modo=alumno (para probar la vista del alumno); dentro de ZenBan lo decide el permiso del usuario
+if (!IN_ZENBAN) { try { if (new URLSearchParams(location.search).get('modo') === 'alumno') aplicarModo('alumno'); } catch (e) {} }

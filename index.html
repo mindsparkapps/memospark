@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=31">
+  <link rel="stylesheet" href="styles.css?v=32">
 </head>
 <body>
 <header class="top">
@@ -26,12 +26,13 @@
       <span><h1>MemoSpark</h1><small>Tarjetas con repetición espaciada</small></span>
     </button>
     <nav class="tabs" role="tablist" aria-label="Secciones">
-      <button role="tab" data-tab="mazos" aria-selected="true">Mazos</button>
+      <button role="tab" class="solo-profe" data-tab="mazos" aria-selected="true">Mazos</button>
       <button role="tab" data-tab="pruebas" aria-selected="false">Pruebas</button>
       <button role="tab" data-tab="stats" aria-selected="false">Estadísticas</button>
-      <button role="tab" data-tab="formato" aria-selected="false">Crear con IA</button>
+      <button role="tab" class="solo-profe" data-tab="formato" aria-selected="false">Crear con IA</button>
     </nav>
     <button class="install-btn" id="installBtn" type="button" hidden title="Instalar la app en este dispositivo"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Instalar</span></button>
+    <span class="chip" id="modoChip" hidden></span>
     <button class="estilo" id="estiloBtn" type="button"></button>
     <button class="icon-btn" type="button" data-act="settings" title="Ajustes" aria-label="Ajustes"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <div class="account-area" id="accountArea">
@@ -99,24 +100,20 @@
   <section class="view" id="v-pruebas" hidden>
     <div class="head-row">
       <div><div class="eyebrow">Simula una prueba real</div><h2>Pruebas</h2></div>
-      <div class="toolbar">
+      <div class="toolbar solo-profe">
         <button class="btn" type="button" data-act="copy-prompt-prueba" title="Copiar las instrucciones para pedirle una prueba a cualquier IA">📋 Copiar instrucciones para la IA</button>
         <button class="btn primary" type="button" data-act="import">Importar prueba .md</button>
       </div>
     </div>
     <div id="pruebas-body"></div>
-    <details class="card prueba-ia">
+    <details class="card prueba-ia solo-profe">
       <summary><h3>Pedirle una prueba a la IA</h3><span class="muted">Completa el pedido, copia las instrucciones, pégalas en ChatGPT, Claude o Gemini e importa la respuesta.</span></summary>
       <div class="grid" style="margin-top:14px">
         <div class="c5">
           <div class="form-stack">
-            <label class="f">Tipo de prueba / tema<input type="text" id="pTema" placeholder="Ej.: Matemática, Inglés, Historia de Chile" autocomplete="off"></label>
-            <div class="frow">
-              <label class="f">Preguntas<input type="number" id="pCant" value="20" min="5" max="100"></label>
-              <label class="f">Minutos<input type="number" id="pMin" value="30" min="5" max="240"></label>
-            </div>
-            <label class="f">Nivel<input type="text" id="pNivel" placeholder="Ej.: 2.º medio, universitario"></label>
-            <label class="f">Material en que se basa (opcional)<textarea id="pMaterial" placeholder="Ej.: video de YouTube «Ecuaciones» https://youtu.be/…, o los apuntes del capítulo 3"></textarea></label>
+            <label class="f">Asignatura y curso<input type="text" id="pTema" placeholder="Ej.: Matemáticas 8° Básico / Ciencias Naturales 1° Medio" autocomplete="off"></label>
+            <label class="f">Material en que se basa (opcional)<textarea id="pMaterial" placeholder="Si lo dejas vacío se usa el temario y los videos cargados en el cuaderno"></textarea></label>
+            <p class="muted" style="font-size:.82rem">La cantidad de preguntas y el tiempo de cada prueba los toma la IA del temario oficial. Pide 10 pruebas; importa cada archivo .md.</p>
             <label class="f">Indicaciones extra (opcional)<textarea id="pExtra" placeholder="Ej.: con ejercicios de cálculo, más difíciles al final"></textarea></label>
           </div>
           <div class="toolbar wrap-row">
@@ -270,13 +267,13 @@
 <div class="bar-tip" id="barTip" role="tooltip" hidden></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="zenban-plugin-sdk.js?v=31"></script>
-<script src="config.js?v=31"></script>
-<script src="formato.js?v=31"></script>
-<script src="mazo-md.js?v=31"></script>
-<script src="srs.js?v=31"></script>
-<script src="sync.js?v=31"></script>
-<script src="app.js?v=31"></script>
-<script src="pruebas.js?v=31"></script>
+<script src="zenban-plugin-sdk.js?v=32"></script>
+<script src="config.js?v=32"></script>
+<script src="formato.js?v=32"></script>
+<script src="mazo-md.js?v=32"></script>
+<script src="srs.js?v=32"></script>
+<script src="sync.js?v=32"></script>
+<script src="app.js?v=32"></script>
+<script src="pruebas.js?v=32"></script>
 </body>
 </html>

@@ -28,14 +28,29 @@
 //     a la pantalla y piensa en una ampolleta (saca la lengua) o en una X (cara triste)
 // 3.8 carpetas (los mazos importados como «Nombre - …» se agrupan solos) y estrella ⭐ «Para estudiar» en la pantalla principal
 // 3.9 los mazos sin carpeta quedan en la carpeta por defecto «General»
+// 4.1 modo profe / alumno (lo decide el permiso en ZenBan), tiempo por pregunta en las pruebas y su orden de mayor a menor,
+//     nuevo prompt para pedir 10 pruebas por asignatura, y el tiempo de la prueba ya no se inventa (sale del temario)
 // 4.0 menú Pruebas: pruebas de alternativas con temporizador (no se pausa), nota 1 a 7, respuestas en rojo / verde,
 //     «dónde repasar» (video y minuto) y estadísticas de pruebas dentro de Estadísticas (ver pruebas.js)
-const APP_VERSION = '4.0';
+const APP_VERSION = '4.1';
 const STORES = ['mazos', 'tarjetas', 'progreso', 'dias', 'registro', 'pruebas', 'intentos'];
 const IN_ZENBAN = !!(window.ZenBanPlugin && ZenBanPlugin.inZenBan);
 let db = null;
 const S = { mazos: new Map(), tarjetas: new Map(), progreso: new Map(), dias: new Map(), registro: new Map(), pruebas: new Map(), intentos: new Map() };
 let readOnly = false;
+// Modo profe / alumno. Dentro de ZenBan lo decide el permiso del usuario en el espacio compartido (ver onInit): con «editar» es
+// profe (todo); con «crear» o «solo ver» es alumno (solo rinde pruebas y ve sus resultados). Fuera de ZenBan siempre es profe,
+// salvo que se abra con ?modo=alumno (para probarlo).
+let modo = 'profe';
+const esAlumno = () => modo === 'alumno';
+const VISTAS_ALUMNO = ['pruebas', 'rendir', 'intento', 'stats'];
+function aplicarModo(m) {
+  modo = m === 'alumno' ? 'alumno' : 'profe';
+  document.body.classList.toggle('modo-alumno', esAlumno());
+  const chip = $('#modoChip');
+  if (chip) { chip.hidden = !esAlumno(); chip.textContent = '🎓 Modo alumno'; }
+  if (esAlumno() && !VISTAS_ALUMNO.includes(vista)) go('pruebas');
+}
 
 // Ajustes de este dispositivo (no se sincronizan: vibrar en el celular no tiene por qué valer para el PC).
 // Dentro de ZenBan no hay localStorage, así que ahí duran mientras la ventana esté abierta.
@@ -227,6 +242,7 @@ function totalPendientes() {
 let vista = 'mazos';
 let mazoAbierto = null;
 function go(v, opts = {}) {
+  if (esAlumno() && !VISTAS_ALUMNO.includes(v)) v = 'pruebas'; // el alumno solo rinde pruebas
   if (vista === 'estudio' && v !== 'estudio') endStudy();
   cerrarSigla();
   const cambia = v !== vista || (opts.mazo && opts.mazo !== mazoAbierto);
@@ -915,6 +931,7 @@ function reemplazarImagenes(texto) {
 }
 
 function abrirImportar() {
+  if (esAlumno()) { toast('Solo el profe puede importar'); return; }
   if (readOnly) { toast('Este tablero es de solo lectura'); return; }
   impParsed = null; impImages = {}; impMissing = [];
   $('#impFiles').value = '';
@@ -1046,7 +1063,7 @@ async function guardarMazos(mazos, fuente) {
 const EJEMPLOS = ['ejemplos/aws-arquitecto.md'];
 let ejemplosRevisados = false;
 async function actualizarEjemplos() {
-  if (ejemplosRevisados || readOnly) return;
+  if (ejemplosRevisados || readOnly || esAlumno()) return;
   ejemplosRevisados = true;
   for (const ruta of EJEMPLOS) {
     try {
@@ -2019,8 +2036,10 @@ aplicarEstilo();
 if (IN_ZENBAN) {
   document.body.classList.add('in-zenban');
   revisarVersionPublicada();
-  ZenBanPlugin.onInit(({ state, theme, readOnly: ro }) => {
+  ZenBanPlugin.onInit(({ state, theme, readOnly: ro, nivel }) => {
     readOnly = !!ro;
+    // nivel = permiso del usuario en ZenBan: «edit» profe; «create» o «view» alumno. ZenBan antiguo (sin nivel) = profe.
+    aplicarModo(nivel && nivel !== 'edit' ? 'alumno' : 'profe');
     $('#readonlyBar').hidden = !readOnly;
     if (theme) temaHost = theme === 'light' ? 'light' : 'dark';
     if (state && state.ajustes && (state.ajustes.estilo === 'zenban' || state.ajustes.estilo === 'propio')) ajustes.estilo = state.ajustes.estilo;
